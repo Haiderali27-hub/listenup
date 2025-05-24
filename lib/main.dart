@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'routes/app_routes.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/signup_screen.dart';
+import 'screens/home/home_screen.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 import 'screens/splash/splash_screen.dart';
 
@@ -26,6 +27,7 @@ class MyApp extends StatelessWidget {
             name: AppRoutes.onboarding, page: () => const OnboardingScreen()),
         GetPage(name: AppRoutes.login, page: () => const LoginScreen()),
         GetPage(name: AppRoutes.signup, page: () => const SignupScreen()),
+        GetPage(name: AppRoutes.home, page: () => const HomeScreen()),
       ],
     );
   }
