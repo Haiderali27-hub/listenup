@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:sound_app/core/constants/images.dart';
+import 'package:sound_app/routes/app_routes.dart';
 
 class OnboardingScreen extends StatelessWidget {
   const OnboardingScreen({super.key});
@@ -49,7 +51,7 @@ class OnboardingScreen extends StatelessWidget {
                 ),
                 child: ElevatedButton(
                   onPressed: () {
-                    // Navigate to Signup/Login
+                    Get.toNamed(AppRoutes.signup);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.transparent,
@@ -72,7 +74,7 @@ class OnboardingScreen extends StatelessWidget {
             const SizedBox(height: 12),
             GestureDetector(
               onTap: () {
-                // Navigate to login screen
+                Get.toNamed(AppRoutes.login);
               },
               child: const Text(
                 'Already have an account',
