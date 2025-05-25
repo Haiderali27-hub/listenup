@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:sound_app/widgets/WaveformPainter.dart';
+import 'package:sound_app/widgets/custom_painter.dart';
 import 'package:sound_app/widgets/mic_button.dart';
-import 'package:sound_app/widgets/status_pill.dart'; // Add this import
+import 'package:sound_app/widgets/status_pill.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -90,50 +91,63 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+            child: Stack(
               children: [
-                // This AnimatedAlign will keep the Row centered when not listening,
-                // then slide it left when listening starts.
-                // inside your Column:
-                Center(
-                  child: isListening
-                      //  Live state: mic + gap + cancel, all centered
-                      ? Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            AnimatedMicButton(
-                              isListening: isListening,
-                              onTap: toggleListening,
-                            ),
-                            const SizedBox(
-                                width: 120), // the exact gap you want
-                            GestureDetector(
-                              onTap: stopListening,
-                              child: Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[300],
-                                  shape: BoxShape.circle,
+                ClipPath(
+                  child: Container(
+                    color: const Color(0xFFE5E5E5),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Center(
+                          child: isListening
+                              ? Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    AnimatedMicButton(
+                                      isListening: isListening,
+                                      onTap: toggleListening,
+                                    ),
+                                    const SizedBox(width: 120),
+                                    GestureDetector(
+                                      onTap: stopListening,
+                                      child: Container(
+                                        width: 40,
+                                        height: 40,
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey[300],
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(Icons.close,
+                                            color: Colors.black87),
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : AnimatedMicButton(
+                                  isListening: isListening,
+                                  onTap: toggleListening,
                                 ),
-                                child: const Icon(Icons.close,
-                                    color: Colors.black87),
-                              ),
-                            ),
-                          ],
-                        )
-                      //  Idle state: just the mic, centered
-                      : AnimatedMicButton(
-                          isListening: isListening,
-                          onTap: toggleListening,
                         ),
+                        const SizedBox(height: 40),
+                        StatusPill(listening: isListening),
+                      ],
+                    ),
+                  ),
                 ),
 
-                const SizedBox(height: 40),
-
-                const SizedBox(height: 40),
-                StatusPill(listening: isListening),
+                // Add this CustomPaint widget to paint the curved border
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: SizedBox(
+                    height: 80, // height of the curve border area
+                    child: CustomPaint(
+                      painter: CurvedBorderPainter(), // your custom painter
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
