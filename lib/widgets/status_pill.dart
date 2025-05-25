@@ -17,7 +17,6 @@ class StatusPill extends StatelessWidget {
           borderRadius: BorderRadius.circular(28),
         ),
         padding: const EdgeInsets.symmetric(vertical: 23, horizontal: 90),
-        fixedSize: const Size(340, 70), // Added to fix the button size
       ),
       child: Text(
         label,

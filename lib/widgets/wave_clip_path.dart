@@ -6,15 +6,15 @@ class WaveClipper extends CustomClipper<Path> {
   Path getClip(Size size) {
     final path = Path();
 
-    // Start at top left corner
-    path.moveTo(0, 40);
+    // Start at top left corner at y=60 to match the attachment
+    path.moveTo(0, 60);
 
-    // Single dome curve (quadratic Bezier)
+    // Single dome curve (quadratic Bezier) with -40 control point for a smooth dome
     path.quadraticBezierTo(
       size.width / 2, // control point x: center width
-      0, // control point y: top edge (dome peak)
+      -40, // control point y: creates the dome peak above the container
       size.width, // end point x: right edge
-      40, // end point y: 40 px down
+      60, // end point y: 60 px down to match left side
     );
 
     // Complete rectangle

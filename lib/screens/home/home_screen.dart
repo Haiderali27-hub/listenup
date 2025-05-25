@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:sound_app/widgets/WaveformPainter.dart';
-import 'package:sound_app/widgets/custom_painter.dart';
 import 'package:sound_app/widgets/mic_button.dart';
 import 'package:sound_app/widgets/status_pill.dart';
+import 'package:sound_app/widgets/wave_clip_path.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -87,13 +86,13 @@ class _HomeScreenState extends State<HomeScreen> {
             height: 150,
             child: CustomPaint(
               size: Size(double.infinity, 150),
-              painter: WaveformPainter(),
             ),
           ),
           Expanded(
             child: Stack(
               children: [
                 ClipPath(
+                  clipper: WaveClipper(),
                   child: Container(
                     color: const Color(0xFFE5E5E5),
                     child: Column(
@@ -132,19 +131,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         const SizedBox(height: 40),
                         StatusPill(listening: isListening),
                       ],
-                    ),
-                  ),
-                ),
-
-                // Add this CustomPaint widget to paint the curved border
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: SizedBox(
-                    height: 80, // height of the curve border area
-                    child: CustomPaint(
-                      painter: CurvedBorderPainter(), // your custom painter
                     ),
                   ),
                 ),

@@ -17,12 +17,12 @@ class CurvedBorderPainter extends CustomPainter {
 
     final path = Path();
 
-    path.moveTo(0, 40);
+    path.moveTo(0, 60);
     path.quadraticBezierTo(
       size.width / 2,
-      0,
+      -40,
       size.width,
-      40,
+      60,
     );
 
     canvas.drawPath(path, paint);
