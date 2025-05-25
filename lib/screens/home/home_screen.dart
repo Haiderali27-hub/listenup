@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:sound_app/widgets/WaveformPainter.dart';
-import 'package:sound_app/widgets/mic_button.dart'; // Add this import
+import 'package:sound_app/widgets/mic_button.dart';
+import 'package:sound_app/widgets/status_pill.dart'; // Add this import
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -131,27 +132,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 const SizedBox(height: 40),
 
-                OutlinedButton(
-                  onPressed: () {
-                    if (isListening) {
-                      setState(() {
-                        voiceDetected = !voiceDetected;
-                      });
-                    }
-                  },
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFF0D2B55)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 14, horizontal: 24),
-                  ),
-                  child: Text(
-                    voiceDetected ? 'VOICE DETECTED' : 'LISTENING...',
-                    style: const TextStyle(color: Color(0xFF0D2B55)),
-                  ),
-                ),
+                const SizedBox(height: 40),
+                StatusPill(listening: isListening),
               ],
             ),
           ),

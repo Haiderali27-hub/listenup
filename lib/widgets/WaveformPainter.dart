@@ -3,43 +3,57 @@ import 'package:flutter/material.dart';
 class WaveformPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.black.withOpacity(0.2)
+    // First, draw the lighter background wave
+    final path1 = Path()
+      ..moveTo(0, size.height * 0.6)
+      ..cubicTo(
+        size.width * 0.25, size.height * 0.5, // control point 1
+        size.width * 0.35, size.height * 0.7, // control point 2
+        size.width * 0.5, size.height * 0.6, // end point
+      )
+      ..cubicTo(
+        size.width * 0.65,
+        size.height * 0.5,
+        size.width * 0.75,
+        size.height * 0.7,
+        size.width,
+        size.height * 0.6,
+      )
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+
+    final paint1 = Paint()
+      ..color = const Color(0xFFEEEEEE) // very light grey
       ..style = PaintingStyle.fill;
+    canvas.drawPath(path1, paint1);
 
-    final path = Path();
+    // Then draw the darker top wave on top of it
+    final path2 = Path()
+      ..moveTo(0, size.height * 0.65)
+      ..cubicTo(
+        size.width * 0.2,
+        size.height * 0.55,
+        size.width * 0.4,
+        size.height * 0.75,
+        size.width * 0.6,
+        size.height * 0.65,
+      )
+      ..cubicTo(
+        size.width * 0.75,
+        size.height * 0.55,
+        size.width * 0.9,
+        size.height * 0.75,
+        size.width,
+        size.height * 0.65,
+      )
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
 
-    path.moveTo(0, size.height * 0.8);
-    path.quadraticBezierTo(size.width * 0.2, size.height * 0.6,
-        size.width * 0.4, size.height * 0.75);
-    path.quadraticBezierTo(size.width * 0.5, size.height * 0.85,
-        size.width * 0.6, size.height * 0.7);
-    path.quadraticBezierTo(size.width * 0.8, size.height * 0.55,
-        size.width * 1.0, size.height * 0.65);
-    path.lineTo(size.width, size.height);
-    path.lineTo(0, size.height);
-    path.close();
-
-    canvas.drawPath(path, paint);
-
-    // Draw a second wave with lighter opacity
     final paint2 = Paint()
-      ..color = Colors.black.withOpacity(0.1)
+      ..color = const Color(0xFFBBBBBB) // medium grey
       ..style = PaintingStyle.fill;
-
-    final path2 = Path();
-
-    path2.moveTo(0, size.height * 0.85);
-    path2.quadraticBezierTo(size.width * 0.15, size.height * 0.65,
-        size.width * 0.35, size.height * 0.8);
-    path2.quadraticBezierTo(size.width * 0.5, size.height * 0.9,
-        size.width * 0.65, size.height * 0.75);
-    path2.quadraticBezierTo(size.width * 0.85, size.height * 0.6,
-        size.width * 1.0, size.height * 0.7);
-    path2.lineTo(size.width, size.height);
-    path2.lineTo(0, size.height);
-    path2.close();
-
     canvas.drawPath(path2, paint2);
   }
 
