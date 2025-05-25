@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-import '../../core/utils/validators.dart';
 import '../../routes/app_routes.dart';
 import '../../widgets/custom_text_field.dart';
-import '../../widgets/primary_button.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -16,7 +14,6 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final _formKey = GlobalKey<FormState>();
 
   String? _emailError;
   String? _passwordError;
@@ -29,24 +26,38 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _validateAndSubmit() {
+    // Clear previous errors
     setState(() {
-      _emailError = Validators.validateEmail(_emailController.text);
-      _passwordError = Validators.validatePassword(_passwordController.text);
+      _emailError = null;
+      _passwordError = null;
     });
 
-    if (_emailError == null && _passwordError == null) {
-      // Proceed with login
-      Get.offAllNamed(AppRoutes.home);
+    // Validate email
+    if (_emailController.text.isEmpty) {
+      setState(() {
+        _emailError = 'Email is required';
+      });
+      return;
     }
+
+    // Validate password
+    if (_passwordController.text.isEmpty) {
+      setState(() {
+        _passwordError = 'Password is required';
+      });
+      return;
+    }
+
+    // If we get here, validation passed
+    Get.offAllNamed(AppRoutes.home);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
-        child: Form(
-          key: _formKey,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -64,8 +75,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 keyboardType: TextInputType.emailAddress,
                 errorText: _emailError,
                 controller: _emailController,
-                autoValidate: true,
-                validator: Validators.validateEmail,
               ),
               const SizedBox(height: 16),
               CustomTextField(
@@ -73,20 +82,45 @@ class _LoginScreenState extends State<LoginScreen> {
                 isPassword: true,
                 errorText: _passwordError,
                 controller: _passwordController,
-                validator: Validators.validatePassword,
               ),
               const SizedBox(height: 10),
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
                   onPressed: () {},
-                  child: const Text('Forgot Password / Login Issue?'),
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                  ),
+                  child: const Text(
+                    'Forgot Password / Login Issue?',
+                    style: TextStyle(
+                      color: Color(0xFF0D2B55),
+                      fontSize: 14,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 20),
-              PrimaryButton(
-                text: 'Sign in',
-                onPressed: _validateAndSubmit,
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _validateAndSubmit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0D2B55),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text(
+                    'Sign in',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
               ),
               const SizedBox(height: 16),
               Center(
