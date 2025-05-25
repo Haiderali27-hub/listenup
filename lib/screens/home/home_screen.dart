@@ -31,6 +31,10 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white, // set white background globally
+
+      // Remove the appBar property completely
+
       drawer: Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
@@ -51,43 +55,84 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu, color: Colors.black87),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
-        ),
-        title: const Text(
-          'Listen Up!',
-          style: TextStyle(
-            color: Color(0xFF0D2B55),
-            fontWeight: FontWeight.bold,
-            decoration: TextDecoration.underline,
-            decorationThickness: 2,
-            decorationColor: Color(0xFF0D2B55),
-          ),
-        ),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_none, color: Colors.black87),
-            onPressed: () {
-              // TODO: Show notifications
-            },
-          ),
-        ],
-      ),
+
       body: Column(
         children: [
+          // Custom top bar replacing AppBar
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.only(
+                top: 90.0,
+                left: 20.0,
+                right: 20.0,
+                bottom: 0.0), // Modified padding
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start, // Added crossAxisAlignment
+              children: [
+                Padding(
+                  // Added Padding for menu icon
+                  padding: const EdgeInsets.only(top: 50.0),
+                  child: Builder(
+                    builder: (context) => IconButton(
+                      icon: const Icon(Icons.menu, color: Color(0xFF0D2B55)),
+                      onPressed: () => Scaffold.of(context).openDrawer(),
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  height: 40, // Adjust height as needed
+                  child: Stack(
+                    alignment: Alignment.centerLeft,
+                    children: [
+                      const Text(
+                        'Listen Up!',
+                        style: TextStyle(
+                          fontFamily: 'Roboto',
+                          color: Color(0xFF0D2B55),
+                          fontWeight: FontWeight.w500,
+                          fontSize: 30,
+                        ),
+                      ),
+                      // Positioned underline under "Li"
+                      Positioned(
+                        left: 0, // start from text start
+                        bottom: 0, // at bottom of text
+                        child: Container(
+                          width: 32, // width covering "Li"
+                          height: 4, // thickness of underline
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0D2B55),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  // Added Padding for notification icon
+                  padding: const EdgeInsets.only(top: 50.0),
+                  child: IconButton(
+                    icon: const Icon(Icons.notifications_none,
+                        color: Color(0xFF0D2B55)),
+                    onPressed: () {
+                      // TODO: Show notifications
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+
           SizedBox(
             height: 150,
             child: CustomPaint(
               size: Size(double.infinity, 150),
             ),
           ),
+
           Expanded(
             child: Stack(
               children: [

@@ -9,21 +9,28 @@ class StatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final label = listening ? 'LISTENING' : 'VOICE DETECTED';
-    return OutlinedButton(
-      onPressed: () {}, // no action
-      style: OutlinedButton.styleFrom(
-        side: const BorderSide(color: Color(0xFF0D2B55)),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(28),
+
+    return SizedBox(
+      width: 305, // fixed width for the button
+      height: 68, // fixed height to match padding and size
+      child: OutlinedButton(
+        onPressed: () {}, // no action
+        style: OutlinedButton.styleFrom(
+          backgroundColor: Colors.white, // set background to white
+          side: const BorderSide(color: Color(0xFF0D2B55)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
+          ),
+          // Remove padding as size is fixed
+          padding: EdgeInsets.zero,
         ),
-        padding: const EdgeInsets.symmetric(vertical: 23, horizontal: 90),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Color(0xFF0D2B55),
-          fontWeight: FontWeight.w500,
-          fontSize: 19,
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xFF0D2B55),
+            fontWeight: FontWeight.w500,
+            fontSize: 19,
+          ),
         ),
       ),
     );
