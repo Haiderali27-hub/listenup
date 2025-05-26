@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:sound_app/screens/home/home_screen.dart';
+import 'package:sound_app/widgets/app_bottom_nav_bar.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  final bool fromBottomNav;
+
+  const SettingsScreen({
+    super.key,
+    this.fromBottomNav = false,
+  });
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -21,7 +28,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black87),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            if (widget.fromBottomNav) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const HomeScreen()),
+              );
+            } else {
+              Navigator.pop(context);
+            }
+          },
         ),
         title: const Text(
           'Settings',
@@ -94,6 +110,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         ),
       ),
+      bottomNavigationBar: const AppBottomNavBar(currentRoute: 'settings'),
     );
   }
 }

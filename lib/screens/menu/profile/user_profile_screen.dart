@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:sound_app/screens/home/home_screen.dart';
+import 'package:sound_app/widgets/app_bottom_nav_bar.dart';
 
 class UserProfileScreen extends StatelessWidget {
-  const UserProfileScreen({super.key});
+  final bool fromBottomNav;
+
+  const UserProfileScreen({
+    super.key,
+    this.fromBottomNav = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -12,7 +19,16 @@ class UserProfileScreen extends StatelessWidget {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black87),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            if (fromBottomNav) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const HomeScreen()),
+              );
+            } else {
+              Navigator.pop(context);
+            }
+          },
         ),
         actions: [
           TextButton(
@@ -105,41 +121,7 @@ class UserProfileScreen extends StatelessWidget {
           ),
         ),
       ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, -5),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              const CircleAvatar(
-                backgroundColor: Color(0xFF0D2B55),
-                radius: 20,
-                child: Icon(Icons.person, color: Colors.white),
-              ),
-              Container(
-                width: 50,
-                height: 50,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF0D2B55),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.mic, color: Colors.white),
-              ),
-              const Icon(Icons.menu, color: Colors.grey),
-            ],
-          ),
-        ),
-      ),
+      bottomNavigationBar: const AppBottomNavBar(currentRoute: 'profile'),
     );
   }
 }

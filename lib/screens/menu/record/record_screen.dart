@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:sound_app/screens/home/home_screen.dart';
 
 class RecordScreen extends StatelessWidget {
-  const RecordScreen({super.key});
+  final bool fromBottomNav;
+
+  const RecordScreen({
+    super.key,
+    this.fromBottomNav = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -12,7 +18,16 @@ class RecordScreen extends StatelessWidget {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black87),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            if (fromBottomNav) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => const HomeScreen()),
+              );
+            } else {
+              Navigator.pop(context);
+            }
+          },
         ),
         title: const Text(
           'Record',

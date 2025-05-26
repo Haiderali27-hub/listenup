@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:sound_app/screens/menu/profile/user_profile_screen.dart';
+import 'package:sound_app/screens/menu/record/record_screen.dart';
 import 'package:sound_app/screens/menu/settings/settings_screen.dart';
-import 'package:sound_app/screens/record/record_screen.dart';
+import 'package:sound_app/widgets/app_bottom_nav_bar.dart';
 
 class MenuScreen extends StatelessWidget {
   const MenuScreen({super.key});
@@ -46,7 +47,8 @@ class MenuScreen extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const SettingsScreen(),
+                      builder: (context) =>
+                          const SettingsScreen(fromBottomNav: false),
                     ),
                   );
                 },
@@ -71,7 +73,8 @@ class MenuScreen extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const UserProfileScreen(),
+                      builder: (context) =>
+                          const UserProfileScreen(fromBottomNav: false),
                     ),
                   );
                 },
@@ -96,54 +99,19 @@ class MenuScreen extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const RecordScreen(),
+                      builder: (context) =>
+                          const RecordScreen(fromBottomNav: false),
                     ),
                   );
                 },
               ),
               const Divider(),
-              // Bottom navigation mockup
               const Spacer(),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 20.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    // Profile icon (left)
-                    CircleAvatar(
-                      radius: 20,
-                      backgroundColor: Colors.grey[200],
-                      child: const Icon(
-                        Icons.person,
-                        color: Colors.grey,
-                      ),
-                    ),
-                    // Center mic button
-                    Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0D2B55),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.mic,
-                        color: Colors.white,
-                      ),
-                    ),
-                    // Menu icon (right)
-                    const Icon(
-                      Icons.menu,
-                      color: Colors.grey,
-                      size: 28,
-                    ),
-                  ],
-                ),
-              ),
             ],
           ),
         ),
       ),
+      bottomNavigationBar: const AppBottomNavBar(),
     );
   }
 }

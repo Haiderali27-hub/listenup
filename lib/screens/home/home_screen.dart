@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sound_app/screens/menu/menu_screen.dart'; // Add import for MenuScreen
+import 'package:sound_app/widgets/app_bottom_nav_bar.dart';
 import 'package:sound_app/widgets/mic_button.dart';
 import 'package:sound_app/widgets/status_pill.dart';
 import 'package:sound_app/widgets/wave_clip_path.dart';
@@ -33,6 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white, // set white background globally
+      bottomNavigationBar: const AppBottomNavBar(currentRoute: 'home'),
 
       // Remove drawer property since we're navigating to a separate screen
 
