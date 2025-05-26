@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:sound_app/screens/menu/menu_screen.dart'; // Add import for MenuScreen
 import 'package:sound_app/widgets/mic_button.dart';
 import 'package:sound_app/widgets/status_pill.dart';
 import 'package:sound_app/widgets/wave_clip_path.dart';
@@ -33,28 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: Colors.white, // set white background globally
 
-      // Remove the appBar property completely
-
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: const [
-            DrawerHeader(
-              decoration: BoxDecoration(color: Color(0xFF0D2B55)),
-              child: Text('Menu',
-                  style: TextStyle(color: Colors.white, fontSize: 24)),
-            ),
-            ListTile(
-              leading: Icon(Icons.settings),
-              title: Text('Settings'),
-            ),
-            ListTile(
-              leading: Icon(Icons.person),
-              title: Text('Profile'),
-            ),
-          ],
-        ),
-      ),
+      // Remove drawer property since we're navigating to a separate screen
 
       body: Column(
         children: [
@@ -73,11 +53,22 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Padding(
                   // Added Padding for menu icon
-                  padding: const EdgeInsets.only(top: 50.0),
+                  padding: const EdgeInsets.only(
+                    top: 50.0,
+                  ),
                   child: Builder(
                     builder: (context) => IconButton(
-                      icon: const Icon(Icons.menu, color: Color(0xFF0D2B55)),
-                      onPressed: () => Scaffold.of(context).openDrawer(),
+                      iconSize: 38.0, // increased from default
+                      icon: const Icon(Icons.menu_open_sharp,
+                          color: Color(0xFF0D2B55)),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const MenuScreen(),
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ),
@@ -115,6 +106,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   // Added Padding for notification icon
                   padding: const EdgeInsets.only(top: 50.0),
                   child: IconButton(
+                    iconSize: 38.0,
                     icon: const Icon(Icons.notifications_none,
                         color: Color(0xFF0D2B55)),
                     onPressed: () {

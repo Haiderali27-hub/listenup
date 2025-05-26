@@ -11,7 +11,7 @@ class CustomTextField extends StatefulWidget {
   final bool autoValidate;
 
   const CustomTextField({
-    Key? key,
+    super.key,
     required this.labelText,
     this.errorText,
     this.isPassword = false,
@@ -20,7 +20,7 @@ class CustomTextField extends StatefulWidget {
     this.onChanged,
     this.validator,
     this.autoValidate = false,
-  }) : super(key: key);
+  });
 
   @override
   State<CustomTextField> createState() => _CustomTextFieldState();
