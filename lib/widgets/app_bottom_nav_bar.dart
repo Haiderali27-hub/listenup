@@ -13,21 +13,24 @@ class AppBottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, -5),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(30),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 0),
+              spreadRadius: 1,
+            ),
+          ],
+        ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
             GestureDetector(
               onTap: () {
@@ -40,12 +43,12 @@ class AppBottomNavBar extends StatelessWidget {
                   );
                 }
               },
-              child: CircleAvatar(
-                backgroundColor: currentRoute == 'profile'
-                    ? const Color(0xFF2BA57C)
-                    : const Color(0xFF0D2B55),
-                radius: 20,
-                child: const Icon(Icons.person, color: Colors.white),
+              child: Icon(
+                Icons.person_outline,
+                color: currentRoute == 'profile'
+                    ? const Color(0xFF0D2B55)
+                    : Colors.grey,
+                size: 28,
               ),
             ),
             GestureDetector(
@@ -58,15 +61,18 @@ class AppBottomNavBar extends StatelessWidget {
                 }
               },
               child: Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  color: currentRoute == 'home'
-                      ? const Color(0xFF2BA57C)
-                      : const Color(0xFF0D2B55),
+                width: 40,
+                height: 40,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF0D2B55),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.mic, color: Colors.white),
+                child: ClipOval(
+                  child: Image.asset(
+                    'assets/images/logo.png',
+                    fit: BoxFit.cover,
+                  ),
+                ),
               ),
             ),
             GestureDetector(
@@ -81,10 +87,11 @@ class AppBottomNavBar extends StatelessWidget {
                 }
               },
               child: Icon(
-                Icons.settings,
+                Icons.settings_outlined,
                 color: currentRoute == 'settings'
-                    ? const Color(0xFF2BA57C)
+                    ? const Color(0xFF0D2B55)
                     : Colors.grey,
+                size: 28,
               ),
             ),
           ],

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sound_app/screens/menu/menu_screen.dart'; // Add import for MenuScreen
+import 'package:sound_app/screens/notification/notification_screen.dart';
 import 'package:sound_app/widgets/app_bottom_nav_bar.dart';
 import 'package:sound_app/widgets/mic_button.dart';
 import 'package:sound_app/widgets/status_pill.dart';
@@ -112,7 +113,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     icon: const Icon(Icons.notifications_none,
                         color: Color(0xFF0D2B55)),
                     onPressed: () {
-                      // TODO: Show notifications
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const NotificationScreen(),
+                        ),
+                      );
                     },
                   ),
                 ),
