@@ -9,6 +9,7 @@ import 'screens/auth/signup_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 import 'screens/splash/splash_screen.dart';
+import 'screens/auth/reset_password_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,6 +35,7 @@ class MyApp extends StatelessWidget {
         GetPage(name: AppRoutes.login, page: () => const LoginScreen()),
         GetPage(name: AppRoutes.signup, page: () => const SignupScreen()),
         GetPage(name: AppRoutes.home, page: () => const HomeScreen()),
+        GetPage(name: AppRoutes.resetPassword, page: () => const ResetPasswordScreen()),
       ],
     );
   }

@@ -4,7 +4,7 @@ import 'package:get/get.dart';
 import '../../core/services/firebase_service.dart';
 import '../../routes/app_routes.dart';
 import '../../widgets/custom_text_field.dart';
-import 'forgot_password_screen.dart';
+import 'reset_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -98,7 +98,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const ForgotPasswordScreen(),
+                        builder: (context) => const ResetPasswordScreen(),
                       ),
                     );
                   },

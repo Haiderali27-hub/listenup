@@ -89,4 +89,72 @@ class FirebaseService {
   }
 
   User? getCurrentUser() => _auth.currentUser;
+
+  Future<void> sendPasswordResetCode(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+      Get.snackbar(
+        'Success',
+        'Verification code has been sent to your email',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
+    } on FirebaseAuthException catch (e) {
+      String message;
+      switch (e.code) {
+        case 'invalid-email':
+          message = 'The email address is not valid.';
+          break;
+        case 'user-not-found':
+          message = 'No user found with this email address.';
+          break;
+        default:
+          message = 'Error: ${e.message}';
+      }
+      Get.snackbar(
+        'Error',
+        message,
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  Future<void> confirmPasswordReset(String code, String newPassword) async {
+    try {
+      await _auth.confirmPasswordReset(code: code, newPassword: newPassword);
+      Get.snackbar(
+        'Success',
+        'Password has been reset successfully',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
+      Get.offAllNamed(AppRoutes.login);
+    } on FirebaseAuthException catch (e) {
+      String message;
+      switch (e.code) {
+        case 'expired-action-code':
+          message = 'The verification code has expired.';
+          break;
+        case 'invalid-action-code':
+          message = 'The verification code is invalid.';
+          break;
+        case 'weak-password':
+          message = 'The password is too weak.';
+          break;
+        default:
+          message = 'Error: ${e.message}';
+      }
+      Get.snackbar(
+        'Error',
+        message,
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
 }
