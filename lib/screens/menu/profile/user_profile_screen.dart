@@ -1,14 +1,51 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:sound_app/screens/home/home_screen.dart';
 import 'package:sound_app/widgets/app_bottom_nav_bar.dart';
+import 'package:sound_app/core/services/firebase_service.dart';
+import 'package:sound_app/routes/app_routes.dart';
 
-class UserProfileScreen extends StatelessWidget {
+class UserProfileScreen extends StatefulWidget {
   final bool fromBottomNav;
 
   const UserProfileScreen({
     super.key,
     this.fromBottomNav = false,
   });
+
+  @override
+  State<UserProfileScreen> createState() => _UserProfileScreenState();
+}
+
+class _UserProfileScreenState extends State<UserProfileScreen> {
+  bool _isLoading = false;
+
+  Future<void> _handleLogout() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final firebaseService = FirebaseService();
+      await firebaseService.signOut();
+      Get.offAllNamed(AppRoutes.login);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to logout. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,7 +57,7 @@ class UserProfileScreen extends StatelessWidget {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black87),
           onPressed: () {
-            if (fromBottomNav) {
+            if (widget.fromBottomNav) {
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (context) => const HomeScreen()),
@@ -32,16 +69,23 @@ class UserProfileScreen extends StatelessWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () {
-              // TODO: Handle logout
-            },
-            child: const Text(
-              'Logout',
-              style: TextStyle(
-                color: Color(0xFF0D2B55),
-                fontSize: 16,
-              ),
-            ),
+            onPressed: _isLoading ? null : _handleLogout,
+            child: _isLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0D2B55)),
+                    ),
+                  )
+                : const Text(
+                    'Logout',
+                    style: TextStyle(
+                      color: Color(0xFF0D2B55),
+                      fontSize: 16,
+                    ),
+                  ),
           ),
         ],
       ),

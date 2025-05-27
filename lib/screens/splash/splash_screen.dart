@@ -4,6 +4,9 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:sound_app/core/constants/images.dart';
+import 'package:sound_app/core/services/firebase_service.dart';
+import 'package:sound_app/routes/app_routes.dart';
+import 'package:sound_app/screens/home/home_screen.dart';
 
 import '../onboarding/onboarding_screen.dart';
 
@@ -18,23 +21,43 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _testFirebase();
+    _initializeApp();
   }
 
-  Future<void> _testFirebase() async {
+  Future<void> _initializeApp() async {
     try {
-      // Test Firebase connection
-      final app = Firebase.app();
-      debugPrint('Firebase Connection Success! Default app name: ${app.name}');
+      // Initialize Firebase
+      await Firebase.initializeApp();
+      debugPrint('Firebase initialized successfully');
 
-      // Wait for 3 seconds then navigate
-      await Future.delayed(const Duration(seconds: 3));
-      Get.offAll(() => const OnboardingScreen());
+      // Check authentication state
+      final firebaseService = FirebaseService();
+      final user = firebaseService.getCurrentUser();
+      
+      // Wait for 2 seconds to show splash screen
+      await Future.delayed(const Duration(seconds: 2));
+      
+      if (!mounted) return;
+
+      if (user != null) {
+        debugPrint('User is logged in, navigating to home screen');
+        Get.offAllNamed(AppRoutes.home);
+      } else {
+        debugPrint('No user logged in, navigating to onboarding');
+        Get.offAllNamed(AppRoutes.onboarding);
+      }
     } catch (e) {
-      debugPrint('Firebase Connection Error: $e');
-      // Still navigate after delay even if Firebase fails
-      await Future.delayed(const Duration(seconds: 3));
-      Get.offAll(() => const OnboardingScreen());
+      debugPrint('Error during app initialization: $e');
+      if (!mounted) return;
+      
+      // Show error and navigate to onboarding
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to initialize app. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      Get.offAllNamed(AppRoutes.onboarding);
     }
   }
 
@@ -80,6 +103,10 @@ class _SplashScreenState extends State<SplashScreen> {
                 color: Colors.white70,
                 fontSize: 14,
               ),
+            ),
+            const SizedBox(height: 40),
+            const CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
             ),
           ],
         ),
