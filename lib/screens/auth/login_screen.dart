@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../core/services/firebase_service.dart';
 import '../../routes/app_routes.dart';
 import '../../widgets/custom_text_field.dart';
 import 'forgot_password_screen.dart';
@@ -15,6 +16,7 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final _firebaseService = FirebaseService();
 
   String? _emailError;
   String? _passwordError;
@@ -26,7 +28,7 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _validateAndSubmit() {
+  void _validateAndSubmit() async {
     // Clear previous errors
     setState(() {
       _emailError = null;
@@ -50,7 +52,11 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     // If we get here, validation passed
-    Get.offAllNamed(AppRoutes.home);
+    // Call Firebase login
+    await _firebaseService.signInWithEmailAndPassword(
+      _emailController.text.trim(),
+      _passwordController.text,
+    );
   }
 
   @override
