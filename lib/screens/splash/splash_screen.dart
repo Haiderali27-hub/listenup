@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:sound_app/core/constants/images.dart';
 
 import '../onboarding/onboarding_screen.dart';
@@ -16,12 +18,24 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Timer(const Duration(seconds: 3), () {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const OnboardingScreen()),
-      );
-    });
+    _testFirebase();
+  }
+
+  Future<void> _testFirebase() async {
+    try {
+      // Test Firebase connection
+      final app = Firebase.app();
+      debugPrint('Firebase Connection Success! Default app name: ${app.name}');
+
+      // Wait for 3 seconds then navigate
+      await Future.delayed(const Duration(seconds: 3));
+      Get.offAll(() => const OnboardingScreen());
+    } catch (e) {
+      debugPrint('Firebase Connection Error: $e');
+      // Still navigate after delay even if Firebase fails
+      await Future.delayed(const Duration(seconds: 3));
+      Get.offAll(() => const OnboardingScreen());
+    }
   }
 
   @override
