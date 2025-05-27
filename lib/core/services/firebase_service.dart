@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -6,6 +7,7 @@ import '../../routes/app_routes.dart';
 
 class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   Future<User?> signInWithEmailAndPassword(
       String email, String password) async {
@@ -46,14 +48,22 @@ class FirebaseService {
   }
 
   Future<User?> registerWithEmailAndPassword(
-      String email, String password) async {
+      String email, String password, String name) async {
     try {
       final credential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
       final user = credential.user;
+      
       if (user != null) {
+        // Store user data in Firestore
+        await _firestore.collection('users').doc(user.uid).set({
+          'name': name,
+          'email': email,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+        
         Get.offAllNamed(AppRoutes.home);
       }
       return user;

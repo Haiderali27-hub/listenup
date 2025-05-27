@@ -50,6 +50,7 @@ class _SignupScreenState extends State<SignupScreen> {
       await _firebaseService.registerWithEmailAndPassword(
         _emailController.text.trim(),
         _passwordController.text,
+        _nameController.text.trim(),
       );
       // Proceed with signup
       Get.offAllNamed(AppRoutes.login);

@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:sound_app/screens/home/home_screen.dart';
 import 'package:sound_app/widgets/app_bottom_nav_bar.dart';
 import 'package:sound_app/core/services/firebase_service.dart';
+import 'package:sound_app/core/services/user_profile_service.dart';
 import 'package:sound_app/routes/app_routes.dart';
 
 class UserProfileScreen extends StatefulWidget {
@@ -19,15 +20,84 @@ class UserProfileScreen extends StatefulWidget {
 
 class _UserProfileScreenState extends State<UserProfileScreen> {
   bool _isLoading = false;
+  final _userProfileService = UserProfileService();
+  final _firebaseService = FirebaseService();
+  final _nameController = TextEditingController();
+  int? _currentAvatarNumber;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserProfile();
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadUserProfile() async {
+    setState(() => _isLoading = true);
+    try {
+      final profile = await _userProfileService.getUserProfile();
+      if (profile != null) {
+        _nameController.text = profile['name'] ?? '';
+        _currentAvatarNumber = profile['avatarNumber'];
+      }
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _updateProfile() async {
+    if (_nameController.text.isEmpty) {
+      Get.snackbar(
+        'Error',
+        'Name cannot be empty',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      final success = await _userProfileService.updateUserProfile(
+        name: _nameController.text,
+        avatarNumber: _currentAvatarNumber,
+      );
+      if (success) {
+        Get.snackbar(
+          'Success',
+          'Profile updated successfully',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+        );
+      }
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _handleAvatarSelection() async {
+    final selectedAvatar = await showAvatarSelectionDialog(
+      context,
+      currentAvatarNumber: _currentAvatarNumber,
+    );
+
+    if (selectedAvatar != null) {
+      setState(() => _currentAvatarNumber = selectedAvatar);
+      await _updateProfile();
+    }
+  }
 
   Future<void> _handleLogout() async {
-    setState(() {
-      _isLoading = true;
-    });
-
+    setState(() => _isLoading = true);
     try {
-      final firebaseService = FirebaseService();
-      await firebaseService.signOut();
+      await _firebaseService.signOut();
       Get.offAllNamed(AppRoutes.login);
     } catch (e) {
       if (mounted) {
@@ -40,9 +110,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       }
     } finally {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
       }
     }
   }
@@ -89,82 +157,71 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0),
-          child: Column(
-            children: [
-              const SizedBox(height: 20),
-              // Profile Image
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.grey[200],
-                    ),
-                    child: const Icon(
-                      Icons.person,
-                      size: 60,
-                      color: Colors.grey,
-                    ),
-                  ),
-                  Positioned(
-                    right: 0,
-                    bottom: 0,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF0D2B55),
-                        shape: BoxShape.circle,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 40),
+
+                    // Avatar Section
+                    GestureDetector(
+                      onTap: _handleAvatarSelection,
+                      child: Column(
+                        children: [
+                          Container(
+                            width: 120,
+                            height: 120,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: const Color(0xFF0D2B55),
+                                width: 2,
+                              ),
+                            ),
+                            child: ClipOval(
+                              child: Image.asset(
+                                _userProfileService.getAvatarImagePath(
+                                  _currentAvatarNumber ?? 1,
+                                ),
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Tap to change avatar',
+                            style: TextStyle(
+                              color: Color(0xFF0D2B55),
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
                       ),
-                      child: const Icon(
-                        Icons.edit,
-                        size: 20,
-                        color: Colors.white,
-                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 40),
+                    const SizedBox(height: 40),
 
-              // Full Name field
-              ProfileTextField(
-                label: 'Full Name',
-                value: 'Chris Pal',
-                onEdit: () {
-                  // TODO: Handle name edit
-                },
-              ),
-              const SizedBox(height: 24),
+                    // Full Name field
+                    ProfileTextField(
+                      label: 'Full Name',
+                      controller: _nameController,
+                      onEdit: _updateProfile,
+                    ),
+                    const SizedBox(height: 24),
 
-              // Email field
-              ProfileTextField(
-                label: 'Email',
-                value: 'chris214@gmail.com',
-                onEdit: () {
-                  // TODO: Handle email edit
-                },
+                    // Email field (read-only)
+                    ProfileTextField(
+                      label: 'Email',
+                      value: _firebaseService.getCurrentUser()?.email ?? '',
+                      readOnly: true,
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                ),
               ),
-              const SizedBox(height: 24),
-
-              // Password field
-              ProfileTextField(
-                label: 'Password',
-                value: '••••••••••••••••',
-                onEdit: () {
-                  // TODO: Handle password edit
-                },
-              ),
-              const SizedBox(height: 24),
-            ],
-          ),
-        ),
-      ),
+            ),
       bottomNavigationBar: const AppBottomNavBar(currentRoute: 'profile'),
     );
   }
@@ -172,14 +229,18 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
 class ProfileTextField extends StatelessWidget {
   final String label;
-  final String value;
-  final VoidCallback onEdit;
+  final String? value;
+  final TextEditingController? controller;
+  final VoidCallback? onEdit;
+  final bool readOnly;
 
   const ProfileTextField({
     super.key,
     required this.label,
-    required this.value,
-    required this.onEdit,
+    this.value,
+    this.controller,
+    this.onEdit,
+    this.readOnly = false,
   });
 
   @override
@@ -198,22 +259,36 @@ class ProfileTextField extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w400,
+              child: controller != null
+                  ? TextField(
+                      controller: controller,
+                      readOnly: readOnly,
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    )
+                  : Text(
+                      value ?? '',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+            ),
+            if (onEdit != null)
+              IconButton(
+                icon: const Icon(
+                  Icons.edit,
+                  color: Color(0xFF0D2B55),
+                  size: 20,
                 ),
+                onPressed: onEdit,
               ),
-            ),
-            IconButton(
-              icon: const Icon(
-                Icons.edit,
-                color: Color(0xFF0D2B55),
-                size: 20,
-              ),
-              onPressed: onEdit,
-            ),
           ],
         ),
         const Divider(),
