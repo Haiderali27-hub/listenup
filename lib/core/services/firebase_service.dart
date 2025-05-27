@@ -45,6 +45,44 @@ class FirebaseService {
     }
   }
 
+  Future<User?> registerWithEmailAndPassword(
+      String email, String password) async {
+    try {
+      final credential = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      final user = credential.user;
+      if (user != null) {
+        Get.offAllNamed(AppRoutes.home);
+      }
+      return user;
+    } on FirebaseAuthException catch (e) {
+      String message;
+      switch (e.code) {
+        case 'email-already-in-use':
+          message = 'The email address is already in use by another account.';
+          break;
+        case 'invalid-email':
+          message = 'The email address is not valid.';
+          break;
+        case 'operation-not-allowed':
+          message = 'Email/password accounts are not enabled.';
+          break;
+        case 'weak-password':
+          message = 'The password is too weak.';
+          break;
+        default:
+          message = 'Registration error: ${e.message}';
+      }
+      Get.snackbar('Registration Failed', message,
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white);
+      return null;
+    }
+  }
+
   Future<void> signOut() async {
     await _auth.signOut();
     Get.offAllNamed(AppRoutes.login);

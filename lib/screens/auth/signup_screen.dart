@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../core/services/firebase_service.dart';
 import '../../core/utils/validators.dart';
 import '../../routes/app_routes.dart';
 import '../../widgets/custom_text_field.dart';
@@ -19,6 +20,8 @@ class _SignupScreenState extends State<SignupScreen> {
   final TextEditingController _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
+  final _firebaseService = FirebaseService();
+
   String? _nameError;
   String? _emailError;
   String? _passwordError;
@@ -32,7 +35,7 @@ class _SignupScreenState extends State<SignupScreen> {
     super.dispose();
   }
 
-  void _validateAndSubmit() {
+  void _validateAndSubmit() async {
     setState(() {
       _nameError = Validators.validateName(_nameController.text);
       _emailError = Validators.validateEmail(_emailController.text);
@@ -43,6 +46,11 @@ class _SignupScreenState extends State<SignupScreen> {
         _emailError == null &&
         _passwordError == null &&
         _agreeToTerms) {
+      // Call Firebase registration
+      await _firebaseService.registerWithEmailAndPassword(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
       // Proceed with signup
       Get.offAllNamed(AppRoutes.login);
     }
