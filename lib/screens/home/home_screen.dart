@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_sound/flutter_sound.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:sound_app/screens/menu/menu_screen.dart'; // Add import for MenuScreen
 import 'package:sound_app/screens/notification/notification_screen.dart';
 import 'package:sound_app/widgets/app_bottom_nav_bar.dart';
@@ -14,21 +16,113 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final FlutterSoundRecorder _audioRecorder = FlutterSoundRecorder();
+
+  bool _recorderInitialized = false;
+
   bool isListening = false;
   bool voiceDetected = false;
 
-  void toggleListening() {
-    setState(() {
-      isListening = !isListening;
-      voiceDetected = false;
-    });
+  void toggleListening() async {
+    if (!_recorderInitialized) {
+      try {
+        // Check current permission status first
+        PermissionStatus status = await Permission.microphone.status;
+
+        // Only request if not already granted
+        if (status.isDenied) {
+          status = await Permission.microphone.request();
+          if (!status.isGranted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                    'Microphone permission is required to use this feature'),
+                backgroundColor: Colors.red,
+              ),
+            );
+            return;
+          }
+        } else if (status.isPermanentlyDenied) {
+          // Show dialog to open settings if permanently denied
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Microphone Permission'),
+              content: const Text(
+                  'Microphone permission is required to use this feature. Please enable it in settings.'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () => openAppSettings(),
+                  child: const Text('Open Settings'),
+                ),
+              ],
+            ),
+          );
+          return;
+        }
+
+        // Initialize recorder only after permission is granted
+        await _audioRecorder.openRecorder();
+        _recorderInitialized = true;
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error initializing microphone: $e')),
+        );
+        return;
+      }
+    }
+
+    if (isListening) {
+      // stop
+      final path = await _stopRecording();
+      print('Recorded file saved at: $path');
+      setState(() {
+        isListening = false;
+        voiceDetected = false;
+      });
+    } else {
+      // start
+      await _startRecording();
+      setState(() {
+        isListening = true;
+        voiceDetected = false;
+      });
+    }
   }
 
-  void stopListening() {
+  void stopListening() async {
+    if (isListening) {
+      await _stopRecording();
+    }
     setState(() {
       isListening = false;
       voiceDetected = false;
     });
+  }
+
+  Future<void> _startRecording() async {
+    if (!_recorderInitialized) return;
+    await _audioRecorder.startRecorder(
+      toFile: 'audio.aac', // local temporary file
+      codec: Codec.aacADTS,
+    );
+  }
+
+  Future<String?> _stopRecording() async {
+    if (!_recorderInitialized) return null;
+    return await _audioRecorder.stopRecorder();
+  }
+
+  @override
+  void dispose() {
+    if (_recorderInitialized) {
+      _audioRecorder.closeRecorder();
+    }
+    super.dispose();
   }
 
   @override
