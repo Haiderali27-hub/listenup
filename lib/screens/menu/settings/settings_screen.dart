@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:sound_app/screens/home/home_screen.dart';
 import 'package:sound_app/widgets/app_bottom_nav_bar.dart';
+import 'package:sound_app/services/background_service.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:sound_app/services/mic_state.dart';
 
 class SettingsScreen extends StatefulWidget {
   final bool fromBottomNav;
@@ -17,7 +20,34 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   bool notificationsEnabled = true;
   bool isEnabled = true;
-  bool microphoneAllowed = true;
+
+  @override
+  void initState() {
+    super.initState();
+    micListening.addListener(_micListener);
+    _syncMicrophonePermission();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncMicrophonePermission();
+  }
+
+  void _micListener() {
+    setState(() {}); // Rebuild when micListening changes
+  }
+
+  Future<void> _syncMicrophonePermission() async {
+    var status = await Permission.microphone.status;
+    setState(() {}); // Only update the UI, don't change micListening.value
+  }
+
+  @override
+  void dispose() {
+    micListening.removeListener(_micListener);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -79,9 +109,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
             SettingsToggleItem(
               icon: Icons.mic_outlined,
               title: 'Allow your microphone',
-              value: microphoneAllowed,
-              onChanged: (value) {
-                setState(() => microphoneAllowed = value);
+              value: micListening.value,
+              onChanged: (value) async {
+                if (value) {
+                  var status = await Permission.microphone.status;
+                  if (!status.isGranted) {
+                    status = await Permission.microphone.request();
+                  }
+                  if (status.isGranted) {
+                    await BackgroundService().startListening();
+                    micListening.value = true;
+                  } else if (status.isPermanentlyDenied) {
+                    showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: Text('Microphone Permission'),
+                        content: Text('Microphone permission is permanently denied. Please enable it in app settings.'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: Text('Cancel'),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              openAppSettings();
+                              Navigator.pop(context);
+                            },
+                            child: Text('Open Settings'),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                } else {
+                  await BackgroundService().stopListening();
+                  micListening.value = false;
+                }
               },
             ),
             const Divider(height: 1),

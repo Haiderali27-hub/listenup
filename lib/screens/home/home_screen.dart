@@ -7,6 +7,11 @@ import 'package:sound_app/widgets/app_bottom_nav_bar.dart';
 import 'package:sound_app/widgets/mic_button.dart';
 import 'package:sound_app/widgets/status_pill.dart';
 import 'package:sound_app/widgets/wave_clip_path.dart';
+import 'package:sound_app/services/sound_service.dart';
+import 'package:sound_app/services/background_service.dart';
+import 'package:sound_app/services/notification_service.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:sound_app/services/mic_state.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,112 +21,74 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final FlutterSoundRecorder _audioRecorder = FlutterSoundRecorder();
+  final NotificationService _notificationService = NotificationService();
+  String? detectedLabel;
 
-  bool _recorderInitialized = false;
+  @override
+  void initState() {
+    super.initState();
+    _initializeServices();
+    printFcmToken();
+    micListening.addListener(_micListener);
+  }
 
-  bool isListening = false;
-  bool voiceDetected = false;
+  void _micListener() {
+    setState(() {}); // Rebuild when micListening changes
+  }
 
-  void toggleListening() async {
-    if (!_recorderInitialized) {
-      try {
-        // Check current permission status first
-        PermissionStatus status = await Permission.microphone.status;
-
-        // Only request if not already granted
-        if (status.isDenied) {
-          status = await Permission.microphone.request();
-          if (!status.isGranted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                    'Microphone permission is required to use this feature'),
-                backgroundColor: Colors.red,
-              ),
-            );
-            return;
-          }
-        } else if (status.isPermanentlyDenied) {
-          // Show dialog to open settings if permanently denied
-          showDialog(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('Microphone Permission'),
-              content: const Text(
-                  'Microphone permission is required to use this feature. Please enable it in settings.'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
-                ),
-                TextButton(
-                  onPressed: () => openAppSettings(),
-                  child: const Text('Open Settings'),
-                ),
-              ],
-            ),
-          );
-          return;
-        }
-
-        // Initialize recorder only after permission is granted
-        await _audioRecorder.openRecorder();
-        _recorderInitialized = true;
-      } catch (e) {
+  Future<void> _initializeServices() async {
+    try {
+      await _notificationService.initialize();
+      await BackgroundService().initialize();
+    } catch (e) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error initializing microphone: $e')),
+          SnackBar(content: Text('Error initializing services: $e')),
         );
-        return;
       }
     }
+  }
 
-    if (isListening) {
-      // stop
-      final path = await _stopRecording();
-      print('Recorded file saved at: $path');
-      setState(() {
-        isListening = false;
-        voiceDetected = false;
-      });
-    } else {
-      // start
-      await _startRecording();
-      setState(() {
-        isListening = true;
-        voiceDetected = false;
-      });
+  void toggleListening() async {
+    try {
+      if (micListening.value) {
+        await BackgroundService().stopListening();
+        micListening.value = false;
+      } else {
+        await BackgroundService().startListening();
+        micListening.value = true;
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error toggling listening: $e')),
+        );
+      }
     }
   }
 
   void stopListening() async {
-    if (isListening) {
-      await _stopRecording();
+    try {
+      await BackgroundService().stopListening();
+      micListening.value = false;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error stopping listening: $e')),
+        );
+      }
     }
-    setState(() {
-      isListening = false;
-      voiceDetected = false;
-    });
   }
 
-  Future<void> _startRecording() async {
-    if (!_recorderInitialized) return;
-    await _audioRecorder.startRecorder(
-      toFile: 'audio.aac', // local temporary file
-      codec: Codec.aacADTS,
-    );
-  }
-
-  Future<String?> _stopRecording() async {
-    if (!_recorderInitialized) return null;
-    return await _audioRecorder.stopRecorder();
+  void printFcmToken() async {
+    String? token = await FirebaseMessaging.instance.getToken();
+    print('FCM Token: $token');
   }
 
   @override
   void dispose() {
-    if (_recorderInitialized) {
-      _audioRecorder.closeRecorder();
-    }
+    micListening.removeListener(_micListener);
+    BackgroundService().dispose();
     super.dispose();
   }
 
@@ -238,12 +205,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Center(
-                          child: isListening
+                          child: micListening.value
                               ? Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     AnimatedMicButton(
-                                      isListening: isListening,
+                                      isListening: micListening.value,
                                       onTap: toggleListening,
                                     ),
                                     const SizedBox(width: 120),
@@ -263,12 +230,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ],
                                 )
                               : AnimatedMicButton(
-                                  isListening: isListening,
+                                  isListening: micListening.value,
                                   onTap: toggleListening,
                                 ),
                         ),
                         const SizedBox(height: 40),
-                        StatusPill(listening: isListening),
+                        StatusPill(listening: micListening.value),
                       ],
                     ),
                   ),
@@ -279,5 +246,48 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> requestMicrophonePermission(BuildContext context) async {
+    var status = await Permission.microphone.status;
+    if (status.isDenied) {
+      status = await Permission.microphone.request();
+      if (!status.isGranted) {
+        // Show error/snackbar
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Microphone permission is required.')),
+        );
+        return;
+      }
+    } else if (status.isPermanentlyDenied) {
+      // Show dialog to open app settings
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Microphone Permission'),
+          content: Text('Microphone permission is permanently denied. Please enable it in app settings.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                openAppSettings();
+                Navigator.pop(context);
+              },
+              child: Text('Open Settings'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+  }
+
+  Future<void> _syncMicrophonePermission() async {
+    var status = await Permission.microphone.status;
+    // Only update the UI, don't start/stop listening
+    setState(() {}); // This will rebuild and show the correct toggle state
   }
 }
