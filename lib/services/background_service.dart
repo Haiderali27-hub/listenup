@@ -57,9 +57,19 @@ class BackgroundService {
         try {
           final path = await _audioRecorder.stopRecorder();
           if (path != null) {
-            final result = await _soundService.detectSound(path);
+            final user = _auth.currentUser;
+            final token = await user?.getIdToken();
+            if (token == null) {
+              print('User token is null, skipping detection');
+              return;
+            }
+            final result = await _soundService.detectSound(path, token);
+            print('API result: $result');
             if (result['confidence'] > 0.7) { // Only process high confidence detections
+              print('Saving to Firestore...');
               await _handleSoundDetection(result);
+            } else {
+              print('Confidence too low, not saving.');
             }
           }
           // Restart recording immediately
@@ -89,6 +99,7 @@ class BackgroundService {
     final userId = _auth.currentUser?.uid;
     if (userId == null) return;
 
+    print('Writing to Firestore: $result');
     // Store in Firestore
     await _firestore.collection('sound_detections').add({
       'userId': userId,

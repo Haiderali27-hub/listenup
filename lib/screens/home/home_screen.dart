@@ -12,6 +12,7 @@ import 'package:sound_app/services/background_service.dart';
 import 'package:sound_app/services/notification_service.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:sound_app/services/mic_state.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -29,6 +30,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _initializeServices();
     printFcmToken();
+    printIdToken();
     micListening.addListener(_micListener);
   }
 
@@ -83,6 +85,11 @@ class _HomeScreenState extends State<HomeScreen> {
   void printFcmToken() async {
     String? token = await FirebaseMessaging.instance.getToken();
     print('FCM Token: $token');
+  }
+
+  void printIdToken() async {
+    String? idToken = await FirebaseAuth.instance.currentUser?.getIdToken();
+    print('ID Token: ' + (idToken ?? 'null'));
   }
 
   @override
