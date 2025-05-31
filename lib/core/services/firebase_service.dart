@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 import '../../routes/app_routes.dart';
 
@@ -18,6 +19,43 @@ class FirebaseService {
       );
       final user = credential.user;
       if (user != null) {
+        // Print tokens after successful login
+        print('\n=== Login Successful - Token Details ===');
+        
+        // Print ID Token
+        final idToken = await user.getIdToken();
+        print('\n--- ID Token ---');
+        print('ID Token: $idToken');
+        print('ID Token Length: ${idToken?.length ?? 0}');
+        if (idToken != null) {
+          print('ID Token First 10 chars: ${idToken.substring(0, idToken.length > 10 ? 10 : idToken.length)}...');
+        } else {
+          print('ID Token is null');
+        }
+        
+        // Print Access Token
+        final accessToken = await user.getIdToken(true); // Force refresh to get access token
+        print('\n--- Access Token ---');
+        print('Access Token: $accessToken');
+        print('Access Token Length: ${accessToken?.length ?? 0}');
+        if (accessToken != null) {
+          print('Access Token First 10 chars: ${accessToken.substring(0, accessToken.length > 10 ? 10 : accessToken.length)}...');
+        } else {
+          print('Access Token is null');
+        }
+        
+        // Print FCM Token
+        final fcmToken = await FirebaseMessaging.instance.getToken();
+        print('\n--- FCM Token ---');
+        print('FCM Token: $fcmToken');
+        print('FCM Token Length: ${fcmToken?.length ?? 0}');
+        if (fcmToken != null) {
+          print('FCM Token First 10 chars: ${fcmToken.substring(0, fcmToken.length > 10 ? 10 : fcmToken.length)}...');
+        } else {
+          print('FCM Token is null');
+        }
+        print('=======================================\n');
+        
         Get.offAllNamed(AppRoutes.home);
       }
       return user;

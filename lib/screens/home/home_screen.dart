@@ -31,6 +31,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _initializeServices();
     printFcmToken();
     printIdToken();
+    printAccessToken();
     micListening.addListener(_micListener);
   }
 
@@ -42,14 +43,14 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       await _notificationService.initialize();
       await BackgroundService().initialize();
-    } catch (e) {
+      } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error initializing services: $e')),
         );
       }
+      }
     }
-  }
 
   void toggleListening() async {
     try {
@@ -60,13 +61,13 @@ class _HomeScreenState extends State<HomeScreen> {
         await BackgroundService().startListening();
         micListening.value = true;
       }
-    } catch (e) {
+        } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error toggling listening: $e')),
         );
-      }
     }
+  }
   }
 
   void stopListening() async {
@@ -78,18 +79,39 @@ class _HomeScreenState extends State<HomeScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error stopping listening: $e')),
         );
-      }
+  }
     }
   }
 
   void printFcmToken() async {
     String? token = await FirebaseMessaging.instance.getToken();
+    print('\n=== FCM Token Details ===');
     print('FCM Token: $token');
+    print('FCM Token Length: ${token?.length ?? 0}');
+    print('FCM Token First 10 chars: ${token?.substring(0, token!.length > 10 ? 10 : token.length)}...');
+    print('========================\n');
   }
 
   void printIdToken() async {
     String? idToken = await FirebaseAuth.instance.currentUser?.getIdToken();
-    print('ID Token: ' + (idToken ?? 'null'));
+    print('\n=== ID Token Details ===');
+    print('ID Token: $idToken');
+    print('ID Token Length: ${idToken?.length ?? 0}');
+    print('ID Token First 10 chars: ${idToken?.substring(0, idToken!.length > 10 ? 10 : idToken.length)}...');
+    print('========================\n');
+  }
+
+  void printAccessToken() async {
+    String? accessToken = await FirebaseAuth.instance.currentUser?.getIdToken(true);
+    print('\n=== Access Token Details ===');
+    print('Access Token: $accessToken');
+    print('Access Token Length: ${accessToken?.length ?? 0}');
+    if (accessToken != null) {
+      print('Access Token First 10 chars: ${accessToken.substring(0, accessToken.length > 10 ? 10 : accessToken.length)}...');
+    } else {
+      print('Access Token is null');
+    }
+    print('========================\n');
   }
 
   @override

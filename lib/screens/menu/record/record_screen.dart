@@ -55,84 +55,84 @@ class RecordScreen extends StatelessWidget {
                 }
                 final records = snapshot.data!.docs;
                 return Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    children: [
-                      const Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Date',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w500,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Text(
-                              'Voice',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w500,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Text(
-                              'Time',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w500,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ),
-                        ],
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              const Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Date',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey,
                       ),
-                      const SizedBox(height: 16),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      'Voice',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      'Time',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
                       Expanded(
                         child: ListView.builder(
                           itemCount: records.length,
-                          itemBuilder: (context, index) {
+                itemBuilder: (context, index) {
                             final data = records[index].data() as Map<String, dynamic>;
                             final timestamp = data['timestamp'] as Timestamp?;
                             final dateTime = timestamp?.toDate();
                             final dateStr = dateTime != null ? DateFormat('dd-MMM-yyyy').format(dateTime) : '-';
                             final timeStr = dateTime != null ? DateFormat('h:mma').format(dateTime) : '-';
                             final label = data['label']?.toString() ?? '-';
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 8.0),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
                                       dateStr,
-                                      style: TextStyle(color: Colors.grey[600]),
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: Text(
-                                      label,
-                                      style: TextStyle(color: Colors.grey[600]),
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: Text(
-                                      timeStr,
-                                      style: TextStyle(color: Colors.grey[600]),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
+                            style: TextStyle(color: Colors.grey[600]),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
+                        Expanded(
+                          child: Text(
+                                      label,
+                            style: TextStyle(color: Colors.grey[600]),
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                                      timeStr,
+                            style: TextStyle(color: Colors.grey[600]),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                        ),
+              ),
+            ],
+          ),
                 );
               },
-            ),
+      ),
     );
   }
 }

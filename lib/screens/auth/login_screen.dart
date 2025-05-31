@@ -65,100 +65,100 @@ class _LoginScreenState extends State<LoginScreen> {
       resizeToAvoidBottomInset: true,
       body: SafeArea(
         child: SingleChildScrollView(
-          child: Padding(
+        child: Padding(
             padding: EdgeInsets.only(
               left: 24,
               right: 24,
               top: 36,
               bottom: MediaQuery.of(context).viewInsets.bottom + 24,
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Sign in to\nListen Up!',
-                  style: TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF0D2B55),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Sign in to\nListen Up!',
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0D2B55),
+                ),
+              ),
+              const SizedBox(height: 30),
+              CustomTextField(
+                labelText: 'Email or Phone Number',
+                keyboardType: TextInputType.emailAddress,
+                errorText: _emailError,
+                controller: _emailController,
+              ),
+              const SizedBox(height: 16),
+              CustomTextField(
+                labelText: 'Password',
+                isPassword: true,
+                errorText: _passwordError,
+                controller: _passwordController,
+              ),
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ResetPasswordScreen(),
+                      ),
+                    );
+                  },
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
                   ),
-                ),
-                const SizedBox(height: 30),
-                CustomTextField(
-                  labelText: 'Email or Phone Number',
-                  keyboardType: TextInputType.emailAddress,
-                  errorText: _emailError,
-                  controller: _emailController,
-                ),
-                const SizedBox(height: 16),
-                CustomTextField(
-                  labelText: 'Password',
-                  isPassword: true,
-                  errorText: _passwordError,
-                  controller: _passwordController,
-                ),
-                const SizedBox(height: 10),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ResetPasswordScreen(),
-                        ),
-                      );
-                    },
-                    style: TextButton.styleFrom(
-                      padding: EdgeInsets.zero,
-                    ),
-                    child: const Text(
-                      'Forgot Password / Login Issue?',
-                      style: TextStyle(
-                        color: Color(0xFF0D2B55),
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _validateAndSubmit,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF0D2B55),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: const Text(
-                      'Sign in',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
+                  child: const Text(
+                    'Forgot Password / Login Issue?',
+                    style: TextStyle(
+                      color: Color(0xFF0D2B55),
+                      fontSize: 14,
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
-                Center(
-                  child: GestureDetector(
-                    onTap: () {
-                      Get.offAllNamed(AppRoutes.signup);
-                    },
-                    child: const Text(
-                      "Don't have an account? Sign up",
-                      style: TextStyle(
-                        color: Color(0xFF0D2B55),
-                        decoration: TextDecoration.underline,
-                      ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _validateAndSubmit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0D2B55),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text(
+                    'Sign in',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
-              ],
+              ),
+              const SizedBox(height: 16),
+              Center(
+                child: GestureDetector(
+                  onTap: () {
+                    Get.offAllNamed(AppRoutes.signup);
+                  },
+                  child: const Text(
+                    "Don't have an account? Sign up",
+                    style: TextStyle(
+                      color: Color(0xFF0D2B55),
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+              ),
+            ],
             ),
           ),
         ),
