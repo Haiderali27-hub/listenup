@@ -5,11 +5,11 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class SoundService {
-  static const String _apiUrl = 'http://16.171.115.187:8000/auth/voice-detect';
+  static const String _apiUrl = 'http://13.61.5.249:8000/auth/voice-detect';
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   /// Sends the recorded audio file at [path] to your backend.
-  /// Automatically includes the user's Access Token and FCM token.
+  /// Automatically includes the user's Access Token and FCM token in the Authorization header and body.
   /// Expects a JSON response like { "label": "baby_crying", "confidence": 0.92 }.
   Future<Map<String, dynamic>> detectSound(String path) async {
     print('\n--- Sound Detection API Call Started ---');
@@ -38,15 +38,15 @@ class SoundService {
     print('Creating multipart request...');
     final request = http.MultipartRequest('POST', uri)
       ..files.add(await http.MultipartFile.fromPath('audio', path))
-      ..fields['token'] = accessToken  // Using Access Token instead of ID Token
       ..fields['fcm_token'] = fcmToken
-      ..headers['Content-Type'] = 'multipart/form-data';
+      ..headers['Content-Type'] = 'multipart/form-data'
+      ..headers['Authorization'] = 'Bearer $accessToken';
 
     print('Request created with:');
     print('- File: audio');
-    print('- Access Token field: present');
     print('- FCM token field: present');
     print('- Content-Type: multipart/form-data');
+    print('- Authorization header: Bearer token present');
 
     try {
       print('Sending request to server...');
