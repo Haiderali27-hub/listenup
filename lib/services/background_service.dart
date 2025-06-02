@@ -19,7 +19,7 @@ class BackgroundService {
   final SoundService _soundService = SoundService();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  static const String _baseUrl = 'http://13.61.5.249:8000';
+  static const String _baseUrl = 'http://16.171.115.187:8000';
   Timer? _detectionTimer;
   bool _isInitialized = false;
   bool _isListening = false;
@@ -34,7 +34,7 @@ class BackgroundService {
       if (!hasPermission) {
         throw Exception('Microphone permission not granted or denied');
       }
-
+      
       _isInitialized = true;
       print('🎤 Audio recorder initialized successfully (using record package)');
     } catch (e) {
@@ -187,7 +187,7 @@ class BackgroundService {
       }
 
       // Then stop the recorder if it's active
-      if (_isListening) {
+    if (_isListening) {
         print('⏹️ Stopping audio recorder...');
         await _audioRecorder.stop();
         _isListening = false;
