@@ -109,56 +109,67 @@ class BackgroundService {
                 } catch (e) {
                   print('❌ Error reading file content: $e');
                 }
+                // Skip this detection cycle if file is too small
+                await _restartRecording(directory);
+                return;
               }
             } else {
               print('❌ Error: Audio file does not exist!');
+              await _restartRecording(directory);
+              return;
             }
 
             final user = _auth.currentUser;
             if (user == null) {
               print('⚠️ No user logged in, skipping detection');
+              await _restartRecording(directory);
               return;
             }
+
             print('📡 Calling sound detection service...');
-            final result = await _soundService.detectSound(path);
-            print('📥 API result received: $result');
+            try {
+              final result = await _soundService.detectSound(path);
+              print('📥 API result received: $result');
 
-            final pushResponse = result['push_response'];
-            if (pushResponse != null && pushResponse.isNotEmpty) {
-              print('🔄 Processing push_response: $pushResponse');
-              final parts = pushResponse.split(',');
-              if (parts.length >= 2) {
-                final confidence = double.tryParse(parts[0]);
-                final label = parts[1];
-                print('📊 Parsed confidence: $confidence, label: $label');
+              final pushResponse = result['push_response'];
+              if (pushResponse != null && pushResponse.isNotEmpty) {
+                print('🔄 Processing push_response: $pushResponse');
+                final parts = pushResponse.split(',');
+                if (parts.length >= 2) {
+                  final confidence = double.tryParse(parts[0]);
+                  final label = parts[1];
+                  print('📊 Parsed confidence: $confidence, label: $label');
 
-                if (confidence != null && confidence > 0.7) {
-                  print('✅ High confidence detection! Saving to Firestore...');
-                  await _handleSoundDetection({'label': label, 'confidence': confidence});
+                  if (confidence != null && confidence > 0.7) {
+                    print('✅ High confidence detection! Saving to Firestore...');
+                    await _handleSoundDetection({'label': label, 'confidence': confidence});
+                  } else {
+                    print('⚠️ Confidence too low ($confidence), not saving.');
+                  }
                 } else {
-                  print('⚠️ Confidence too low ($confidence), not saving.');
+                  print('⚠️ Unexpected push_response format: $pushResponse');
                 }
               } else {
-                print('⚠️ Unexpected push_response format: $pushResponse');
+                print('⚠️ push_response is null or empty');
               }
-            } else {
-              print('⚠️ push_response is null or empty');
+            } catch (e) {
+              print('❌ Error in sound detection: $e');
+              // Continue with next recording cycle
             }
           } else {
             print('❌ No audio file path received');
           }
-          final newFilePath = '${directory.path}/audio_${DateTime.now().millisecondsSinceEpoch}.wav';
-          print('🎤 Restarting audio recorder (using record package)...');
-          final newRecordConfig = RecordConfig(
-            encoder: AudioEncoder.wav,
-            sampleRate: 48000,
-            numChannels: 1,
-          );
-          await _audioRecorder.start(newRecordConfig, path: newFilePath);
-          print('✅ Audio recorder restarted');
+          
+          await _restartRecording(directory);
         } catch (e) {
           print('❌ Error in sound detection cycle: $e');
           print('Stack trace: ${StackTrace.current}');
+          // Try to restart recording
+          try {
+            await _restartRecording(directory);
+          } catch (restartError) {
+            print('❌ Error restarting recording: $restartError');
+          }
         }
         print('🔄 --- Detection Cycle Ended ---\n');
       });
@@ -169,9 +180,24 @@ class BackgroundService {
     }
   }
 
+  Future<void> _restartRecording(Directory directory) async {
+    if (!_isListening || _isStopping) return;
+    
+    final newFilePath = '${directory.path}/audio_${DateTime.now().millisecondsSinceEpoch}.wav';
+    print('🎤 Restarting audio recorder (using record package)...');
+    final newRecordConfig = RecordConfig(
+      encoder: AudioEncoder.wav,
+      sampleRate: 48000,
+      numChannels: 1,
+    );
+    await _audioRecorder.start(newRecordConfig, path: newFilePath);
+    print('✅ Audio recorder restarted');
+  }
+
   Future<void> stopListening() async {
     if (_isStopping) {
-      print('⚠️ Already in the process of stopping, ignoring duplicate stop request');
+      print('⚠️ Already in the process of stopping, waiting for completion...');
+      await Future.delayed(const Duration(milliseconds: 500));
       return;
     }
 
@@ -187,22 +213,29 @@ class BackgroundService {
       }
 
       // Then stop the recorder if it's active
-    if (_isListening) {
+      if (_isListening) {
         print('⏹️ Stopping audio recorder...');
-        await _audioRecorder.stop();
-        _isListening = false;
-        print('✅ Recording stopped successfully');
+        try {
+          await _audioRecorder.stop();
+          _isListening = false;
+          print('✅ Recording stopped successfully');
+        } catch (e) {
+          print('❌ Error stopping recorder: $e');
+          // Reset state even if there's an error
+          _isListening = false;
+        }
       } else {
         print('ℹ️ Recorder was not active');
       }
     } catch (e) {
-      print('❌ Error stopping recording: $e');
+      print('❌ Error in stopListening: $e');
       // Reset state even if there's an error
       _isListening = false;
       _detectionTimer?.cancel();
       _detectionTimer = null;
     } finally {
       _isStopping = false;
+      print('✅ Stop process completed');
     }
   }
 
