@@ -4,84 +4,98 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'api_service.dart';
 
 class NotificationService {
-  final FirebaseMessaging _fcm = FirebaseMessaging.instance;
+  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  static const String _baseUrl = 'http://13.61.5.249:8000';
+  final ApiService _apiService = ApiService();
+  bool _isInitialized = false;
 
   Future<void> initialize() async {
-    // Request permission for notifications
-    await _fcm.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+    if (_isInitialized) return;
 
-    // Initialize local notifications
-    const initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const initializationSettingsIOS = DarwinInitializationSettings();
-    const initializationSettings = InitializationSettings(
-      android: initializationSettingsAndroid,
-      iOS: initializationSettingsIOS,
-    );
+    try {
+      // Initialize local notifications
+      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const iosSettings = DarwinInitializationSettings();
+      const initSettings = InitializationSettings(
+        android: androidSettings,
+        iOS: iosSettings,
+      );
 
-    await _localNotifications.initialize(
-      initializationSettings,
-      onDidReceiveNotificationResponse: (NotificationResponse response) {
-        // Handle notification tap
-      },
-    );
+      await _localNotifications.initialize(
+        initSettings,
+        onDidReceiveNotificationResponse: (NotificationResponse response) {
+          // Handle notification tap
+          print('Notification tapped: ${response.payload}');
+        },
+      );
 
-    // Get initial token and register it
-    String? token = await _fcm.getToken();
-    if (token != null) {
-      await _updateFcmToken(token);
+      // Request permission
+      final settings = await _messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+
+      if (settings.authorizationStatus != AuthorizationStatus.authorized) {
+        throw Exception('Notification permission not granted');
+      }
+
+      // Get FCM token
+      final token = await _messaging.getToken();
+      if (token == null) {
+        throw Exception('Failed to get FCM token');
+      }
+
+      // Register token with backend
+      await _apiService.registerDeviceToken(token);
+
+      // Listen for token refresh
+      _messaging.onTokenRefresh.listen((newToken) async {
+        print('FCM token refreshed: ${newToken.substring(0, 10)}...');
+        await _apiService.registerDeviceToken(newToken);
+      });
+
+      // Handle incoming messages when app is in foreground
+      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+        print('Got a message whilst in the foreground!');
+        print('Message data: ${message.data}');
+
+        if (message.notification != null) {
+          print('Message also contained a notification: ${message.notification}');
+          _showNotification(message);
+        }
+      });
+
+      // Handle notification tap when app is in background
+      FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+        print('Message opened app from background state!');
+        print('Message data: ${message.data}');
+      });
+
+      _isInitialized = true;
+      print('NotificationService initialized successfully');
+    } catch (e) {
+      print('Error initializing NotificationService: $e');
+      throw Exception('Failed to initialize NotificationService: $e');
     }
-
-    // Handle FCM token refresh
-    _fcm.onTokenRefresh.listen((token) {
-      // Update token in your backend
-      _updateFcmToken(token);
-    });
-
-    // Handle incoming messages when app is in foreground
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      _showNotification(message);
-    });
-
-    // Handle notification tap when app is in background
-    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      // Handle notification tap
-    });
   }
 
-  Future<void> _updateFcmToken(String token) async {
+  Future<void> _updateFcmToken() async {
     try {
-      // Get the current user's ID token
-      String? idToken = await _auth.currentUser?.getIdToken();
-      if (idToken == null) {
-        print('No user logged in, cannot register device token');
-        return;
+      final token = await _messaging.getToken();
+      if (token == null) {
+        throw Exception('Failed to get FCM token');
       }
 
-      // Register the device token with the backend
-      final request = http.MultipartRequest('POST', Uri.parse('$_baseUrl/auth/register-device-token/')) //url for fcm and id tokem
-        ..fields['token'] = idToken
-        ..fields['device_token'] = token;
-
-      final streamed = await request.send();
-      final response = await http.Response.fromStream(streamed);
-
-      if (response.statusCode == 200) {
-        print('Device token registered successfully');
-      } else {
-        print('Failed to register device token: ${response.statusCode}');
-        print('Response body: ${response.body}');
-      }
+      await _apiService.registerDeviceToken(token);
+      print('FCM token updated successfully');
     } catch (e) {
-      print('Error registering device token: $e');
+      print('Error updating FCM token: $e');
+      throw Exception('Failed to update FCM token: $e');
     }
   }
 
@@ -92,9 +106,14 @@ class NotificationService {
       channelDescription: 'Notifications for detected sounds',
       importance: Importance.high,
       priority: Priority.high,
+      showWhen: true,
     );
 
-    final iosDetails = const DarwinNotificationDetails();
+    final iosDetails = const DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
 
     final details = NotificationDetails(
       android: androidDetails,
@@ -106,11 +125,11 @@ class NotificationService {
       message.notification?.title ?? 'Sound Detected',
       message.notification?.body ?? 'A sound was detected',
       details,
-      payload: message.data.toString(),
+      payload: json.encode(message.data),
     );
   }
 
   Future<String?> getToken() async {
-    return await _fcm.getToken();
+    return await _messaging.getToken();
   }
 } 
