@@ -1,1 +1,33 @@
-{"flutter":{"platforms":{"dart":{"lib/firebase_options.dart":{"projectId":"listenup-460bd","configurations":{"ios":"1:584112023735:ios:73852009bb7fbd69c90532","macos":"1:584112023735:ios:73852009bb7fbd69c90532","web":"1:584112023735:web:ad878bc6e6007d04c90532","windows":"1:584112023735:web:59690cec1f64f3b3c90532"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "listenup-460bd",
+          "configurations": {
+            "ios": "1:584112023735:ios:73852009bb7fbd69c90532",
+            "macos": "1:584112023735:ios:73852009bb7fbd69c90532",
+            "web": "1:584112023735:web:ad878bc6e6007d04c90532",
+            "windows": "1:584112023735:web:59690cec1f64f3b3c90532"
+          }
+        }
+      }
+    }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ],
+      "predeploy": [
+        "npm --prefix \"$RESOURCE_DIR\" run build"
+      ]
+    }
+  ]
+}

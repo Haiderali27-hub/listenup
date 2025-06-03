@@ -9,6 +9,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
+import 'package:sound_app/services/notification_service.dart';
 
 class BackgroundService {
   static final BackgroundService _instance = BackgroundService._internal();
@@ -19,6 +20,7 @@ class BackgroundService {
   final SoundService _soundService = SoundService();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final NotificationService _notificationService = NotificationService();
   static const String _baseUrl = 'http://16.171.115.187:8000';
   Timer? _detectionTimer;
   bool _isInitialized = false;
@@ -256,6 +258,13 @@ class BackgroundService {
         'timestamp': FieldValue.serverTimestamp(),
       });
       print('✅ Successfully saved to Firestore');
+
+      // Trigger local notification after successful save
+      await _notificationService.showLocalNotification(
+        title: 'Sound Detected!',
+        body: 'Detected sound: ${result['label']}',
+      );
+
     } catch (e) {
       print('❌ Error in _handleSoundDetection: $e');
     }
