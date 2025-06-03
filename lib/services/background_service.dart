@@ -128,29 +128,29 @@ class BackgroundService {
 
             print('📡 Calling sound detection service...');
             try {
-              final result = await _soundService.detectSound(path);
-              print('📥 API result received: $result');
+            final result = await _soundService.detectSound(path);
+            print('📥 API result received: $result');
 
-              final pushResponse = result['push_response'];
-              if (pushResponse != null && pushResponse.isNotEmpty) {
-                print('🔄 Processing push_response: $pushResponse');
-                final parts = pushResponse.split(',');
-                if (parts.length >= 2) {
-                  final confidence = double.tryParse(parts[0]);
-                  final label = parts[1];
-                  print('📊 Parsed confidence: $confidence, label: $label');
+            final pushResponse = result['push_response'];
+            if (pushResponse != null && pushResponse.isNotEmpty) {
+              print('🔄 Processing push_response: $pushResponse');
+              final parts = pushResponse.split(',');
+              if (parts.length >= 3) {
+                final confidence = double.tryParse(parts[0]);
+                final label = parts[2];
+                print('📊 Parsed confidence: $confidence, label: $label');
 
                   if (confidence != null && confidence > 0.7) {
-                    print('✅ High confidence detection! Saving to Firestore...');
-                    await _handleSoundDetection({'label': label, 'confidence': confidence});
-                  } else {
-                    print('⚠️ Confidence too low ($confidence), not saving.');
-                  }
+                  print('✅ High confidence detection! Saving to Firestore...');
+                  await _handleSoundDetection({'label': label, 'confidence': confidence});
                 } else {
-                  print('⚠️ Unexpected push_response format: $pushResponse');
+                  print('⚠️ Confidence too low ($confidence), not saving.');
                 }
               } else {
-                print('⚠️ push_response is null or empty');
+                print('⚠️ Unexpected push_response format or insufficient parts: $pushResponse');
+              }
+            } else {
+              print('⚠️ push_response is null or empty');
               }
             } catch (e) {
               print('❌ Error in sound detection: $e');
@@ -213,7 +213,7 @@ class BackgroundService {
       }
 
       // Then stop the recorder if it's active
-      if (_isListening) {
+    if (_isListening) {
         print('⏹️ Stopping audio recorder...');
         try {
           await _audioRecorder.stop();
