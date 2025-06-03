@@ -4,6 +4,7 @@ import 'package:sound_app/widgets/app_bottom_nav_bar.dart';
 import 'package:sound_app/services/background_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:sound_app/services/mic_state.dart';
+import 'package:sound_app/screens/menu/record/record_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   final bool fromBottomNav;
@@ -167,6 +168,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
               trailing: const Icon(Icons.chevron_right),
               onTap: () {
                 // TODO: Navigate to change password screen
+              },
+            ),
+            const Divider(height: 1),
+
+            // Record Folder option
+            ListTile(
+              leading: const Icon(Icons.folder),
+              title: const Text('Record Folder'),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const RecordScreen()),
+                );
               },
             ),
             const Divider(height: 1),

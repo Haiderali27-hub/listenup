@@ -6,9 +6,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 class SoundService {
-  static const String _apiUrl = 'http://16.171.115.187:8000/auth/voice-detect';
+  static const String _apiUrl = 'http://13.61.5.249:8000/auth/voice-detect/';
+  static const String _registerUrl = 'http://13.61.5.249:8000/auth/register/';
+  static const String _loginUrl = 'http://13.61.5.249:8000/auth/login/';
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final Connectivity _connectivity = Connectivity();
+  String? _backendToken;
+  DateTime? _tokenExpiry;
+  int _tokenRefreshCount = 0;  // Track number of token refreshes
 
   Future<bool> _checkConnectivity() async {
     try {
@@ -17,6 +22,143 @@ class SoundService {
     } catch (e) {
       print('Error checking connectivity: $e');
       return false;
+    }
+  }
+
+  Future<String> _getBackendToken() async {
+    // Check if we have a valid token
+    if (_backendToken != null && _tokenExpiry != null) {
+      final timeUntilExpiry = _tokenExpiry!.difference(DateTime.now());
+      if (timeUntilExpiry.isNegative) {
+        print('\n🔄 Token has expired (${timeUntilExpiry.inMinutes} minutes ago)');
+        print('📊 Token refresh count: ${_tokenRefreshCount + 1}');
+        _tokenRefreshCount++;
+      } else if (timeUntilExpiry.inMinutes < 5) {
+        print('\n⚠️ Token will expire soon (in ${timeUntilExpiry.inMinutes} minutes)');
+        print('🔄 Proactively refreshing token...');
+        print('📊 Token refresh count: ${_tokenRefreshCount + 1}');
+        _tokenRefreshCount++;
+      } else {
+        print('\n✅ Using cached backend token');
+        print('⏰ Token expires in: ${timeUntilExpiry.inMinutes} minutes');
+        return _backendToken!;
+      }
+    } else {
+      print('\n🔄 No valid token found, getting new token...');
+      print('📊 Token refresh count: ${_tokenRefreshCount + 1}');
+      _tokenRefreshCount++;
+    }
+
+    // Get Firebase user info
+    final user = _auth.currentUser;
+    if (user == null) {
+      print('❌ No Firebase user logged in');
+      throw Exception('No user logged in');
+    }
+
+    print('\n🔄 Starting backend authentication process...');
+    print('📧 Firebase email: ${user.email}');
+    print('🆔 Firebase UID: ${user.uid}');
+
+    try {
+      // First try to login with existing account
+      print('\n🔑 Attempting to login to backend...');
+      final loginResponse = await http.post(
+        Uri.parse(_loginUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': user.email,
+          'password': user.uid,
+        }),
+      );
+
+      print('📡 Login response status: ${loginResponse.statusCode}');
+      print('📦 Login response body: ${loginResponse.body}');
+
+      if (loginResponse.statusCode == 200) {
+        // Login successful
+        try {
+          final data = jsonDecode(loginResponse.body) as Map<String, dynamic>;
+          if (!data.containsKey('access_token')) {
+            print('❌ No access_token in response: $data');
+            throw Exception('Invalid response format: missing access_token');
+          }
+          _backendToken = data['access_token'];
+          _tokenExpiry = DateTime.now().add(const Duration(hours: 1));
+          print('✅ Successfully refreshed token');
+          print('⏰ New token expires at: $_tokenExpiry');
+          return _backendToken!;
+        } catch (e) {
+          print('❌ Error parsing login response: $e');
+          throw Exception('Invalid login response format: $e');
+        }
+      } else if (loginResponse.statusCode == 401) {
+        print('\n⚠️ Login failed, token might be invalid');
+        print('🔄 Attempting to create new account...');
+        
+        // Account doesn't exist, create new account
+        print('\n📝 Creating new backend account...');
+        final registerResponse = await http.post(
+          Uri.parse(_registerUrl),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'email': user.email,
+            'password': user.uid,
+            'fullname': user.displayName ?? user.email?.split('@')[0] ?? 'User',
+          }),
+        );
+
+        print('📡 Registration response status: ${registerResponse.statusCode}');
+        print('📦 Registration response body: ${registerResponse.body}');
+
+        if (registerResponse.statusCode == 200 || registerResponse.statusCode == 201) {
+          print('✅ Successfully created backend account');
+          
+          // Registration successful, try login again
+          print('\n🔑 Attempting to login with new account...');
+          final newLoginResponse = await http.post(
+            Uri.parse(_loginUrl),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'email': user.email,
+              'password': user.uid,
+            }),
+          );
+
+          print('📡 New login response status: ${newLoginResponse.statusCode}');
+          print('📦 New login response body: ${newLoginResponse.body}');
+
+          if (newLoginResponse.statusCode == 200) {
+            try {
+              final data = jsonDecode(newLoginResponse.body) as Map<String, dynamic>;
+              if (!data.containsKey('access_token')) {
+                print('❌ No access_token in response: $data');
+                throw Exception('Invalid response format: missing access_token');
+              }
+              _backendToken = data['access_token'];
+              _tokenExpiry = DateTime.now().add(const Duration(hours: 1));
+              print('✅ Successfully got new token');
+              print('⏰ New token expires at: $_tokenExpiry');
+              return _backendToken!;
+            } catch (e) {
+              print('❌ Error parsing new login response: $e');
+              throw Exception('Invalid new login response format: $e');
+            }
+          } else {
+            print('❌ Failed to login after registration. Status: ${newLoginResponse.statusCode}');
+            throw Exception('Failed to login after registration: ${newLoginResponse.body}');
+          }
+        } else {
+          print('❌ Failed to create backend account. Status: ${registerResponse.statusCode}');
+          throw Exception('Failed to create backend account: ${registerResponse.body}');
+        }
+      } else {
+        print('❌ Unexpected login response status: ${loginResponse.statusCode}');
+        throw Exception('Unexpected login response: ${loginResponse.body}');
+      }
+    } catch (e) {
+      print('❌ Error in _getBackendToken: $e');
+      rethrow;
     }
   }
 
@@ -30,7 +172,7 @@ class SoundService {
 
     // Check connectivity first
     if (!await _checkConnectivity()) {
-      print('No internet connection available');
+      print('❌ No internet connection available');
       throw Exception('No internet connection available');
     }
 
@@ -38,57 +180,53 @@ class SoundService {
     print('Getting FCM token...');
     final fcmToken = await FirebaseMessaging.instance.getToken();
     if (fcmToken == null) {
-      print('FCM token is null, cannot proceed');
+      print('❌ FCM token is null, cannot proceed');
       throw Exception('FCM token is null');
     }
-    print('Got FCM token: ${fcmToken.substring(0, 10)}...');
+    print('✅ Got FCM token: ${fcmToken.substring(0, 10)}...');
 
-    // Get fresh Access Token
-    print('Getting fresh Access Token...');
-    final accessToken = await _auth.currentUser?.getIdToken(true);
-    if (accessToken == null) {
-      print('Access Token is null, cannot proceed');
-      throw Exception('Access Token is null');
-    }
-    print('Got Access Token: ${accessToken.substring(0, 10)}...');
+    // Get backend token
+    print('Getting backend token...');
+    final backendToken = await _getBackendToken();
+    print('✅ Got backend token: ${backendToken.substring(0, 10)}...');
 
     for (int attempt = 1; attempt <= retries; attempt++) {
       try {
-        print('Attempt $attempt of $retries');
+        print('\n🔄 Attempt $attempt of $retries');
         
         final uri = Uri.parse(_apiUrl);
-        print('Creating multipart request...');
+        print('📤 Creating multipart request...');
         final request = http.MultipartRequest('POST', uri)
           ..files.add(await http.MultipartFile.fromPath('audio', path))
-          ..fields['fcm_token'] = fcmToken
+          ..fields['token'] = fcmToken
           ..headers['Content-Type'] = 'multipart/form-data'
-          ..headers['Authorization'] = 'Bearer $accessToken';
+          ..headers['Authorization'] = 'Bearer $backendToken';
 
-        print('Request created with:');
+        print('📤 Request created with:');
         print('- File: audio');
-        print('- FCM token field: present');
+        print('- FCM token field: token');
         print('- Content-Type: multipart/form-data');
         print('- Authorization header: Bearer token present');
 
-        print('Sending request to server...');
+        print('📤 Sending request to server...');
         final streamed = await request.send().timeout(
           const Duration(seconds: 30),
           onTimeout: () {
-            print('Request timed out after 30 seconds');
+            print('❌ Request timed out after 30 seconds');
             throw TimeoutException('Request timed out');
           },
         );
         
-        print('Request sent, waiting for response...');
+        print('⏳ Request sent, waiting for response...');
         final response = await http.Response.fromStream(streamed).timeout(
           const Duration(seconds: 30),
           onTimeout: () {
-            print('Response timed out after 30 seconds');
+            print('❌ Response timed out after 30 seconds');
             throw TimeoutException('Response timed out');
           },
         );
         
-        print('Response received:');
+        print('📥 Response received:');
         print('- Status code: ${response.statusCode}');
         print('- Response headers: ${response.headers}');
         print('- Response body: ${response.body}');
@@ -96,45 +234,50 @@ class SoundService {
         if (response.statusCode == 200) {
           try {
             final data = jsonDecode(response.body) as Map<String, dynamic>;
-            print('Successfully parsed response: $data');
+            print('✅ Successfully parsed response: $data');
             print('--- Sound Detection API Call Completed Successfully ---\n');
             return data;
           } catch (e) {
-            print('Error parsing response JSON: $e');
-            print('Raw response body: ${response.body}');
+            print('❌ Error parsing response JSON: $e');
+            print('📦 Raw response body: ${response.body}');
             throw Exception('Invalid JSON response from server: ${response.body}');
           }
         } else if (response.statusCode == 401) {
-          print('Authentication failed, refreshing token...');
-          await _auth.currentUser?.getIdToken(true);
+          print('🔑 Authentication failed, refreshing token...');
+          // Clear the token to force a new login
+          _backendToken = null;
+          _tokenExpiry = null;
           if (attempt == retries) {
+            print('❌ Authentication failed after $retries attempts');
             throw Exception('Authentication failed after $retries attempts. Status: ${response.statusCode}, Body: ${response.body}');
           }
+          print('🔄 Retrying with new token...');
           continue;
         } else {
-          print('Server error: ${response.body}');
+          print('❌ Server error: ${response.body}');
           if (attempt == retries) {
+            print('❌ Failed after $retries attempts');
             throw Exception('Sound API error: ${response.statusCode} - ${response.body}');
           }
-          // Wait before retrying
+          print('⏳ Waiting before retry...');
           await Future.delayed(Duration(seconds: attempt * 2));
           continue;
         }
       } on TimeoutException {
-        print('Request timed out on attempt $attempt');
+        print('❌ Request timed out on attempt $attempt');
         if (attempt == retries) {
-          print('--- Sound Detection API Call Failed with Timeout ---\n');
+          print('❌ Sound Detection API Call Failed with Timeout ---\n');
           rethrow;
         }
-        // Wait before retrying
+        print('⏳ Waiting before retry...');
         await Future.delayed(Duration(seconds: attempt * 2));
       } catch (e) {
-        print('Error in detectSound (attempt $attempt): $e');
+        print('❌ Error in detectSound (attempt $attempt): $e');
         if (attempt == retries) {
-          print('--- Sound Detection API Call Failed with Error ---\n');
+          print('❌ Sound Detection API Call Failed with Error ---\n');
           rethrow;
         }
-        // Wait before retrying
+        print('⏳ Waiting before retry...');
         await Future.delayed(Duration(seconds: attempt * 2));
       }
     }
