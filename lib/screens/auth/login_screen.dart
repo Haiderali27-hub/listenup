@@ -20,6 +20,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   String? _emailError;
   String? _passwordError;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -52,11 +53,34 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     // If we get here, validation passed
-    // Call Firebase login
-    await _firebaseService.signInWithEmailAndPassword(
-      _emailController.text.trim(),
-      _passwordController.text,
-    );
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Call Firebase login
+      final user = await _firebaseService.signInWithEmailAndPassword(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
+
+      if (user != null) {
+        Get.snackbar(
+          'Success',
+          'Welcome back!',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 2),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -65,100 +89,115 @@ class _LoginScreenState extends State<LoginScreen> {
       resizeToAvoidBottomInset: true,
       body: SafeArea(
         child: SingleChildScrollView(
-        child: Padding(
+          child: Padding(
             padding: EdgeInsets.only(
               left: 24,
               right: 24,
               top: 36,
               bottom: MediaQuery.of(context).viewInsets.bottom + 24,
             ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Sign in to\nListen Up!',
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF0D2B55),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Sign in to\nListen Up!',
+                  style: TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0D2B55),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 30),
-              CustomTextField(
-                labelText: 'Email or Phone Number',
-                keyboardType: TextInputType.emailAddress,
-                errorText: _emailError,
-                controller: _emailController,
-              ),
-              const SizedBox(height: 16),
-              CustomTextField(
-                labelText: 'Password',
-                isPassword: true,
-                errorText: _passwordError,
-                controller: _passwordController,
-              ),
-              const SizedBox(height: 10),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const ResetPasswordScreen(),
+                const SizedBox(height: 30),
+                CustomTextField(
+                  labelText: 'Email or Phone Number',
+                  keyboardType: TextInputType.emailAddress,
+                  errorText: _emailError,
+                  controller: _emailController,
+                  enabled: !_isLoading,
+                ),
+                const SizedBox(height: 16),
+                CustomTextField(
+                  labelText: 'Password',
+                  isPassword: true,
+                  errorText: _passwordError,
+                  controller: _passwordController,
+                  enabled: !_isLoading,
+                ),
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: _isLoading
+                        ? null
+                        : () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const ResetPasswordScreen(),
+                              ),
+                            );
+                          },
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                    ),
+                    child: const Text(
+                      'Forgot Password / Login Issue?',
+                      style: TextStyle(
+                        color: Color(0xFF0D2B55),
+                        fontSize: 14,
                       ),
-                    );
-                  },
-                  style: TextButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                  ),
-                  child: const Text(
-                    'Forgot Password / Login Issue?',
-                    style: TextStyle(
-                      color: Color(0xFF0D2B55),
-                      fontSize: 14,
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _validateAndSubmit,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0D2B55),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _validateAndSubmit,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0D2B55),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : const Text(
+                            'Sign in',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                   ),
-                  child: const Text(
-                    'Sign in',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                ),
+                const SizedBox(height: 16),
+                Center(
+                  child: GestureDetector(
+                    onTap: _isLoading
+                        ? null
+                        : () {
+                            Get.offAllNamed(AppRoutes.signup);
+                          },
+                    child: Text(
+                      "Don't have an account? Sign up",
+                      style: TextStyle(
+                        color: _isLoading ? Colors.grey : const Color(0xFF0D2B55),
+                        decoration: TextDecoration.underline,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Center(
-                child: GestureDetector(
-                  onTap: () {
-                    Get.offAllNamed(AppRoutes.signup);
-                  },
-                  child: const Text(
-                    "Don't have an account? Sign up",
-                    style: TextStyle(
-                      color: Color(0xFF0D2B55),
-                      decoration: TextDecoration.underline,
-                    ),
-                  ),
-                ),
-              ),
-            ],
+              ],
             ),
           ),
         ),

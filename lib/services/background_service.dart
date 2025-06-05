@@ -27,6 +27,18 @@ class BackgroundService {
   bool _isListening = false;
   String? _lastRecordedFilePath;
   bool _isStopping = false;
+  String? _currentRecordingPath;
+  String? _lastProcessedFilePath;
+  DateTime? _lastDetectionTime;
+  int _consecutiveFailures = 0;
+  static const int _maxConsecutiveFailures = 3;
+  static const Duration _minTimeBetweenDetections = Duration(seconds: 5);
+  static const Duration _recordingDuration = Duration(seconds: 5);
+  static const Duration _maxRecordingDuration = Duration(seconds: 30);
+  static const Duration _detectionInterval = Duration(seconds: 10);
+  static const Duration _retryDelay = Duration(seconds: 5);
+  static const int _maxRetries = 3;
+  static const Duration _requestTimeout = Duration(seconds: 30);
 
   Future<void> initialize() async {
     if (_isInitialized) return;
@@ -56,177 +68,44 @@ class BackgroundService {
       await Future.delayed(const Duration(milliseconds: 500));
     }
 
-    if (!_isInitialized) {
-      print('🔄 Not initialized, initializing now...');
-      await initialize();
-    }
-
     try {
       print('🎤 Starting audio recorder (using record package)...');
       final directory = await getApplicationDocumentsDirectory();
-      final filePath = '${directory.path}/audio_${DateTime.now().millisecondsSinceEpoch}.wav';
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final path = '${directory.path}/audio_$timestamp.wav';
       
-      final recordConfig = RecordConfig(
-        encoder: AudioEncoder.wav,
-        sampleRate: 48000,
-        numChannels: 1,
+      await _audioRecorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.wav,
+          sampleRate: 44100,
+          numChannels: 1,
+          bitRate: 128000,
+        ),
+        path: path,
       );
-
-      await _audioRecorder.start(recordConfig, path: filePath);
       
       _isListening = true;
-      print('✅ Audio recorder started successfully (using record package)');
-      print('📁 Recording to file: $filePath');
+      _currentRecordingPath = path;
+      print('✅ Recording started successfully at: $path');
 
-      print('⏱️ Setting up detection timer...');
-      _detectionTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
-        if (!_isListening || _isStopping) {
-          print('⚠️ Not listening or stopping, cancelling timer...');
-          timer.cancel();
-          return;
-        }
-
-        try {
-          await Future.delayed(const Duration(milliseconds: 500));
-          
-          print('⏹️ Stopping recorder to get audio file...');
-          final path = await _audioRecorder.stop();
-          if (path != null) {
-            _lastRecordedFilePath = path;
-            print('📁 Got audio file at: $path');
-            
-            final file = File(path);
-            if (await file.exists()) {
-              final fileSize = await file.length();
-              print('📊 Audio file size: ${fileSize} bytes');
-              if (fileSize <= 44) {
-                print('⚠️ Warning: Audio file is suspiciously small or empty!');
-                print('   Expected size > 44 bytes for 5 seconds of audio');
-                print('   Current size: $fileSize bytes');
-                print('   File path: $path');
-                
-                try {
-                  final bytes = await file.readAsBytes();
-                  print('📝 First 100 bytes of file: ${bytes.take(100).toList()}');
-                } catch (e) {
-                  print('❌ Error reading file content: $e');
-                }
-                // Skip this detection cycle if file is too small
-                await _restartRecording(directory);
-                return;
-              }
-            } else {
-              print('❌ Error: Audio file does not exist!');
-              await _restartRecording(directory);
-              return;
-            }
-
-            final user = _auth.currentUser;
-            if (user == null) {
-              print('⚠️ No user logged in, skipping detection');
-              await _restartRecording(directory);
-              return;
-            }
-
-            print('📡 Calling sound detection service...');
-            try {
-            final result = await _soundService.detectSound(path);
-            print('📥 API result received: $result');
-
-            final pushResponse = result['push_response'];
-            if (pushResponse != null && pushResponse.isNotEmpty) {
-              print('🔄 Processing push_response: $pushResponse');
-              final parts = pushResponse.split(',');
-              if (parts.length >= 3) {
-                final confidence = double.tryParse(parts[0]);
-                final label = parts[2];
-                print('📊 Parsed confidence: $confidence, label: $label');
-
-                  if (confidence != null && confidence > 0.7) {
-                  print('✅ High confidence detection! Saving to Firestore...');
-                  await _handleSoundDetection({'label': label, 'confidence': confidence});
-                } else {
-                  print('⚠️ Confidence too low ($confidence), not saving.');
-                }
-              } else {
-                print('⚠️ Unexpected push_response format or insufficient parts: $pushResponse');
-              }
-            } else {
-              print('⚠️ push_response is null or empty');
-              }
-            } catch (e) {
-              print('❌ Error in sound detection: $e');
-              // Continue with next recording cycle
-            }
-          } else {
-            print('❌ No audio file path received');
-          }
-          
-          await _restartRecording(directory);
-        } catch (e) {
-          print('❌ Error in sound detection cycle: $e');
-          print('Stack trace: ${StackTrace.current}');
-          // Try to restart recording
-          try {
-            await _restartRecording(directory);
-          } catch (restartError) {
-            print('❌ Error restarting recording: $restartError');
-          }
-        }
-        print('🔄 --- Detection Cycle Ended ---\n');
-      });
-      print('✅ Detection timer setup complete');
+      // Start the detection timer
+      _startDetectionTimer();
     } catch (e) {
       print('❌ Error starting recording: $e');
+      _isListening = false;
+      _currentRecordingPath = null;
       rethrow;
     }
   }
 
-  Future<void> _restartRecording(Directory directory) async {
-    if (!_isListening || _isStopping) {
-      print('⚠️ Cannot restart recording: isListening=$_isListening, isStopping=$_isStopping');
+  Future<void> stopListening() async {
+    print('🛑 Attempting to stop listening...');
+    
+    if (_isStopping) {
+      print('⚠️ Already in the process of stopping, returning...');
       return;
     }
     
-    try {
-      final newFilePath = '${directory.path}/audio_${DateTime.now().millisecondsSinceEpoch}.wav';
-      print('🎤 Restarting audio recorder (using record package)...');
-      print('📁 New recording path: $newFilePath');
-      
-      final newRecordConfig = RecordConfig(
-        encoder: AudioEncoder.wav,
-        sampleRate: 48000,
-        numChannels: 1,
-      );
-      
-      await _audioRecorder.start(newRecordConfig, path: newFilePath);
-      print('✅ Audio recorder restarted successfully');
-      print('🔄 Ready for next detection cycle');
-    } catch (e) {
-      print('❌ Error restarting recording: $e');
-      print('Stack trace: ${StackTrace.current}');
-      // Try to recover by reinitializing
-      try {
-        print('🔄 Attempting to recover by reinitializing...');
-        _isInitialized = false;
-        await initialize();
-        await _restartRecording(directory);
-      } catch (recoveryError) {
-        print('❌ Recovery failed: $recoveryError');
-        // If recovery fails, we should stop listening to prevent further errors
-        await stopListening();
-      }
-    }
-  }
-
-  Future<void> stopListening() async {
-    if (_isStopping) {
-      print('⚠️ Already in the process of stopping, waiting for completion...');
-      await Future.delayed(const Duration(milliseconds: 500));
-      return;
-    }
-
-    print('🛑 Attempting to stop listening...');
     _isStopping = true;
 
     try {
@@ -238,29 +117,196 @@ class BackgroundService {
       }
 
       // Then stop the recorder if it's active
-    if (_isListening) {
+      if (_isListening) {
         print('⏹️ Stopping audio recorder...');
         try {
           await _audioRecorder.stop();
-          _isListening = false;
           print('✅ Recording stopped successfully');
         } catch (e) {
           print('❌ Error stopping recorder: $e');
-          // Reset state even if there's an error
+        } finally {
           _isListening = false;
+          _currentRecordingPath = null;
         }
-      } else {
-        print('ℹ️ Recorder was not active');
       }
+
+      print('✅ Stop listening completed successfully');
     } catch (e) {
       print('❌ Error in stopListening: $e');
-      // Reset state even if there's an error
-      _isListening = false;
-      _detectionTimer?.cancel();
-      _detectionTimer = null;
+      rethrow;
     } finally {
       _isStopping = false;
-      print('✅ Stop process completed');
+    }
+  }
+
+  void _startDetectionTimer() {
+    print('⏱️ Starting detection timer...');
+    _detectionTimer?.cancel();
+    _detectionTimer = Timer.periodic(_detectionInterval, (timer) async {
+      if (!_isListening || _isStopping) {
+        print('⚠️ Timer tick but not listening or stopping, cancelling timer...');
+        timer.cancel();
+        return;
+      }
+
+      try {
+        await _processCurrentRecording();
+      } catch (e) {
+        print('❌ Error in detection timer: $e');
+        _consecutiveFailures++;
+        
+        if (_consecutiveFailures >= _maxConsecutiveFailures) {
+          print('❌ Too many consecutive failures, stopping detection...');
+          await stopListening();
+        }
+      }
+    });
+    print('✅ Detection timer started');
+  }
+
+  Future<void> _processCurrentRecording() async {
+    if (!_isListening || _isStopping || _currentRecordingPath == null) {
+      print('⚠️ Cannot process recording: isListening=$_isListening, isStopping=$_isStopping, path=${_currentRecordingPath != null}');
+      return;
+    }
+
+    print('🔄 Processing current recording...');
+    final file = File(_currentRecordingPath!);
+    
+    if (!await file.exists()) {
+      print('❌ Recording file does not exist: ${_currentRecordingPath}');
+      return;
+    }
+
+    final fileSize = await file.length();
+    print('📊 Current recording size: $fileSize bytes');
+
+    if (fileSize < 1000) {
+      print('⚠️ File too small, skipping detection');
+      return;
+    }
+
+    try {
+      await _detectAndSaveSound(file);
+      _consecutiveFailures = 0;
+    } catch (e) {
+      print('❌ Error detecting sound: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> _detectAndSaveSound(File file) async {
+    if (!_isListening || _isStopping || _currentRecordingPath == null) {
+      print('⚠️ Cannot detect sound: isListening=$_isListening, isStopping=$_isStopping, path=${_currentRecordingPath != null}');
+      return;
+    }
+
+    print('📁 Got audio file at: $_currentRecordingPath');
+    
+    if (await file.exists()) {
+      final fileSize = await file.length();
+      print('📊 Audio file size: ${fileSize} bytes');
+      if (fileSize <= 44) {
+        print('⚠️ Warning: Audio file is suspiciously small or empty!');
+        print('   Expected size > 44 bytes for 5 seconds of audio');
+        print('   Current size: $fileSize bytes');
+        print('   File path: $_currentRecordingPath');
+        
+        try {
+          final bytes = await file.readAsBytes();
+          print('📝 First 100 bytes of file: ${bytes.take(100).toList()}');
+        } catch (e) {
+          print('❌ Error reading file content: $e');
+        }
+        // Skip this detection cycle if file is too small
+        await _restartRecording();
+        return;
+      }
+    } else {
+      print('❌ Error: Audio file does not exist!');
+      await _restartRecording();
+      return;
+    }
+
+    final user = _auth.currentUser;
+    if (user == null) {
+      print('⚠️ No user logged in, skipping detection');
+      await _restartRecording();
+      return;
+    }
+
+    print('📡 Calling sound detection service...');
+    try {
+      final result = await _soundService.detectSound(_currentRecordingPath!);
+      print('📥 API result received: $result');
+
+      final pushResponse = result['push_response'];
+      if (pushResponse != null && pushResponse.isNotEmpty) {
+        print('🔄 Processing push_response: $pushResponse');
+        final parts = pushResponse.split(',');
+        if (parts.length >= 3) {
+          final confidence = double.tryParse(parts[0]);
+          final label = parts[2];
+          print('📊 Parsed confidence: $confidence, label: $label');
+
+          if (confidence != null && confidence > 0.7) {
+            print('✅ High confidence detection! Saving to Firestore...');
+            await _handleSoundDetection({'label': label, 'confidence': confidence});
+          } else {
+            print('⚠️ Confidence too low ($confidence), not saving.');
+          }
+        } else {
+          print('⚠️ Unexpected push_response format or insufficient parts: $pushResponse');
+        }
+      } else {
+        print('⚠️ push_response is null or empty');
+      }
+    } catch (e) {
+      print('❌ Error in sound detection: $e');
+      // Continue with next recording cycle
+    }
+    
+    await _restartRecording();
+  }
+
+  Future<void> _restartRecording() async {
+    if (!_isListening || _isStopping) {
+      print('⚠️ Cannot restart recording: isListening=$_isListening, isStopping=$_isStopping');
+      return;
+    }
+    
+    try {
+      final newFilePath = '${_currentRecordingPath!.split('_').first}_${DateTime.now().millisecondsSinceEpoch}.wav';
+      print('🎤 Restarting audio recorder (using record package)...');
+      print('📁 New recording path: $newFilePath');
+      
+      await _audioRecorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.wav,
+          sampleRate: 44100,
+          numChannels: 1,
+          bitRate: 128000,
+        ),
+        path: newFilePath,
+      );
+      print('✅ Audio recorder restarted successfully');
+      print('🔄 Ready for next detection cycle');
+    } catch (e) {
+      print('❌ Error restarting recording: $e');
+      print('Stack trace: ${StackTrace.current}');
+      // Try to recover by reinitializing
+      try {
+        print('🔄 Attempting to recover by reinitializing...');
+        _isInitialized = false;
+        await initialize();
+        if (!_isStopping) {
+          await _restartRecording();
+        }
+      } catch (recoveryError) {
+        print('❌ Recovery failed: $recoveryError');
+        // If recovery fails, we should stop listening to prevent further errors
+        await stopListening();
+      }
     }
   }
 

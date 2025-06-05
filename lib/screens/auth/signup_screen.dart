@@ -26,6 +26,7 @@ class _SignupScreenState extends State<SignupScreen> {
   String? _emailError;
   String? _passwordError;
   bool _agreeToTerms = false;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -46,14 +47,45 @@ class _SignupScreenState extends State<SignupScreen> {
         _emailError == null &&
         _passwordError == null &&
         _agreeToTerms) {
-      // Call Firebase registration
-      await _firebaseService.registerWithEmailAndPassword(
-        _emailController.text.trim(),
-        _passwordController.text,
-        _nameController.text.trim(),
+      setState(() {
+        _isLoading = true;
+      });
+
+      try {
+        // Call Firebase registration
+        final user = await _firebaseService.registerWithEmailAndPassword(
+          _emailController.text.trim(),
+          _passwordController.text,
+          _nameController.text.trim(),
+        );
+
+        if (user != null) {
+          Get.snackbar(
+            'Success',
+            'Account created successfully!',
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.green,
+            colorText: Colors.white,
+            duration: const Duration(seconds: 2),
+          );
+          // Navigate to login screen after successful registration
+          Get.offAllNamed(AppRoutes.login);
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
+    } else if (!_agreeToTerms) {
+      Get.snackbar(
+        'Error',
+        'Please agree to the Terms and Conditions',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
       );
-      // Proceed with signup
-      Get.offAllNamed(AppRoutes.login);
     }
   }
 
@@ -83,6 +115,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   errorText: _nameError,
                   controller: _nameController,
                   validator: Validators.validateName,
+                  enabled: !_isLoading,
                 ),
                 const SizedBox(height: 16),
                 CustomTextField(
@@ -91,6 +124,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   errorText: _emailError,
                   controller: _emailController,
                   validator: Validators.validateEmail,
+                  enabled: !_isLoading,
                 ),
                 const SizedBox(height: 16),
                 CustomTextField(
@@ -99,17 +133,20 @@ class _SignupScreenState extends State<SignupScreen> {
                   errorText: _passwordError,
                   controller: _passwordController,
                   validator: Validators.validatePassword,
+                  enabled: !_isLoading,
                 ),
                 const SizedBox(height: 16),
                 Row(
                   children: [
                     Checkbox(
                       value: _agreeToTerms,
-                      onChanged: (value) {
-                        setState(() {
-                          _agreeToTerms = value ?? false;
-                        });
-                      },
+                      onChanged: _isLoading
+                          ? null
+                          : (value) {
+                              setState(() {
+                                _agreeToTerms = value ?? false;
+                              });
+                            },
                     ),
                     const Expanded(
                       child: Text.rich(
@@ -132,18 +169,21 @@ class _SignupScreenState extends State<SignupScreen> {
                 const SizedBox(height: 20),
                 PrimaryButton(
                   text: 'Create account',
-                  onPressed: _validateAndSubmit,
+                  onPressed: _isLoading ? null : _validateAndSubmit,
+                  isLoading: _isLoading,
                 ),
                 const SizedBox(height: 16),
                 Center(
                   child: GestureDetector(
-                    onTap: () {
-                      Get.offAllNamed(AppRoutes.login);
-                    },
-                    child: const Text(
+                    onTap: _isLoading
+                        ? null
+                        : () {
+                            Get.offAllNamed(AppRoutes.login);
+                          },
+                    child: Text(
                       'Already have an account? Sign in',
                       style: TextStyle(
-                        color: Color(0xFF0D2B55),
+                        color: _isLoading ? Colors.grey : const Color(0xFF0D2B55),
                         fontWeight: FontWeight.w500,
                         decoration: TextDecoration.underline,
                       ),
