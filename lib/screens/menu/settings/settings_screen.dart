@@ -5,6 +5,7 @@ import 'package:sound_app/services/background_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:sound_app/services/mic_state.dart';
 import 'package:sound_app/screens/menu/record/record_screen.dart';
+import 'package:sound_app/screens/menu/settings/fcm_token_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   final bool fromBottomNav;
@@ -180,6 +181,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => const RecordScreen()),
+                );
+              },
+            ),
+            const Divider(height: 1),
+
+            // FCM Token option
+            ListTile(
+              leading: const Icon(Icons.token),
+              title: const Text('FCM Token'),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const FCMTokenScreen(fromBottomNav: false),
+                  ),
                 );
               },
             ),

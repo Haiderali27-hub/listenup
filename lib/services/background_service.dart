@@ -183,17 +183,40 @@ class BackgroundService {
   }
 
   Future<void> _restartRecording(Directory directory) async {
-    if (!_isListening || _isStopping) return;
+    if (!_isListening || _isStopping) {
+      print('⚠️ Cannot restart recording: isListening=$_isListening, isStopping=$_isStopping');
+      return;
+    }
     
-    final newFilePath = '${directory.path}/audio_${DateTime.now().millisecondsSinceEpoch}.wav';
-    print('🎤 Restarting audio recorder (using record package)...');
-    final newRecordConfig = RecordConfig(
-      encoder: AudioEncoder.wav,
-      sampleRate: 48000,
-      numChannels: 1,
-    );
-    await _audioRecorder.start(newRecordConfig, path: newFilePath);
-    print('✅ Audio recorder restarted');
+    try {
+      final newFilePath = '${directory.path}/audio_${DateTime.now().millisecondsSinceEpoch}.wav';
+      print('🎤 Restarting audio recorder (using record package)...');
+      print('📁 New recording path: $newFilePath');
+      
+      final newRecordConfig = RecordConfig(
+        encoder: AudioEncoder.wav,
+        sampleRate: 48000,
+        numChannels: 1,
+      );
+      
+      await _audioRecorder.start(newRecordConfig, path: newFilePath);
+      print('✅ Audio recorder restarted successfully');
+      print('🔄 Ready for next detection cycle');
+    } catch (e) {
+      print('❌ Error restarting recording: $e');
+      print('Stack trace: ${StackTrace.current}');
+      // Try to recover by reinitializing
+      try {
+        print('🔄 Attempting to recover by reinitializing...');
+        _isInitialized = false;
+        await initialize();
+        await _restartRecording(directory);
+      } catch (recoveryError) {
+        print('❌ Recovery failed: $recoveryError');
+        // If recovery fails, we should stop listening to prevent further errors
+        await stopListening();
+      }
+    }
   }
 
   Future<void> stopListening() async {

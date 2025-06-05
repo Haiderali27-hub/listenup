@@ -134,6 +134,22 @@ class _SignupScreenState extends State<SignupScreen> {
                   text: 'Create account',
                   onPressed: _validateAndSubmit,
                 ),
+                const SizedBox(height: 16),
+                Center(
+                  child: GestureDetector(
+                    onTap: () {
+                      Get.offAllNamed(AppRoutes.login);
+                    },
+                    child: const Text(
+                      'Already have an account? Sign in',
+                      style: TextStyle(
+                        color: Color(0xFF0D2B55),
+                        fontWeight: FontWeight.w500,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
