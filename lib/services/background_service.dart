@@ -187,6 +187,12 @@ class BackgroundService {
   }
 
   Future<void> _processRecording(String path) async {
+    if (!_isListening) {
+      print('⚠️ Service stopped during processing, aborting.');
+      _isProcessing = false;
+      return;
+    }
+
     if (_isProcessing) return;
     _isProcessing = true;
 
@@ -244,7 +250,7 @@ class BackgroundService {
           // Always show a local notification using the parsed data
           await _notificationService.showNotification(
             title: 'Sound Detected',
-            body: 'Detected: $detectedLabel (${confidenceStr}% confidence)',
+            body: 'Detected: $detectedLabel',
           );
 
           print('✅ Processing cycle completed successfully');
@@ -302,7 +308,7 @@ class BackgroundService {
       print('❌ Error stopping recording: $e');
     } finally {
       _isStopping = false;
-      print('✅ Stop listening completed successfully');
+      print('✅ Stop listen completed successfully');
     }
   }
 
@@ -363,6 +369,11 @@ class BackgroundService {
   }
 
   Future<void> _detectAndSaveSound(File file) async {
+    if (!_isListening) {
+      print('⚠️ Service stopped during detection, aborting.');
+      return;
+    }
+
     if (!_isListening || _isStopping || _currentRecordingPath == null) {
       print('⚠️ Cannot detect sound: isListening=$_isListening, isStopping=$_isStopping, path=${_currentRecordingPath != null}');
       return;
