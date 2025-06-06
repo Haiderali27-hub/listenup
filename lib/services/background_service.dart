@@ -205,28 +205,72 @@ class BackgroundService {
         // Send to backend
         print('📡 Sending to backend...');
         final result = await _soundService.detectSound(path);
-        
+
         if (result != null) {
           print('✅ Sound detection result received: $result');
-          
-          // Save to Firestore
-          await _saveToFirestore(result);
-          
-          // Send notification
+
+          String detectedLabel = 'Unknown Sound';
+          String confidenceStr = '0';
+          double confidence = 0.0;
+
+          // Check and parse the push_response if it exists and is a string
+          if (result.containsKey('push_response') && result['push_response'] is String) {
+            final pushResponse = result['push_response'] as String;
+            print('🔄 Parsing push_response: $pushResponse');
+            final parts = pushResponse.split(',');
+            if (parts.length >= 3) {
+              // Assuming the format from logs is confidence,mid,label
+              confidenceStr = parts[0];
+              detectedLabel = parts[2];
+              confidence = double.tryParse(confidenceStr) ?? 0.0;
+              print('📊 Parsed label: $detectedLabel, confidence: $confidenceStr');
+            } else {
+                print('⚠️ push_response format unexpected or incomplete: $pushResponse');
+                 // Fallback to generic values if parsing fails
+                detectedLabel = 'Unknown Sound';
+                confidenceStr = '0';
+                confidence = 0.0;
+            }
+          } else {
+              print('⚠️ push_response missing or not a string in result');
+          }
+
+          // Save to Firestore using the parsed data
+          await _saveToFirestore({
+            'label': detectedLabel,
+            'confidence': confidence,
+          });
+
+          // Always show a local notification using the parsed data
           await _notificationService.showNotification(
             title: 'Sound Detected',
-            body: 'Detected: ${result['label'] ?? 'Unknown Sound'} (${result['confidence']?.toString() ?? '0'}% confidence)',
+            body: 'Detected: $detectedLabel (${confidenceStr}% confidence)',
           );
-          
+
           print('✅ Processing cycle completed successfully');
         } else {
           print('❌ No result received from backend');
+           // Show a generic notification if no result received
+           await _notificationService.showNotification(
+              title: 'Sound Detection Failed',
+              body: 'Could not detect sound. No response from server.',
+           );
         }
       } else {
         print('❌ Recording file not found at: $path');
+        // Show a generic notification if file not found
+         await _notificationService.showNotification(
+            title: 'Recording Error',
+            body: 'Could not find the recorded audio file.',
+         );
       }
     } catch (e) {
       print('❌ Error processing recording: $e');
+      // Show a generic notification on error
+       await _notificationService.showNotification(
+          title: 'Processing Error',
+          body: 'An error occurred during sound detection.',
+       );
     } finally {
       _isProcessing = false;
       // Start the next recording cycle

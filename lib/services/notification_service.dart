@@ -33,8 +33,27 @@ class NotificationService {
       iOS: initializationSettingsIOS,
     );
 
-    await _localNotifications.initialize(initializationSettings);
-    print('✅ Notification permission requested.');
+    await _localNotifications.initialize(
+      initializationSettings,
+      onDidReceiveNotificationResponse: (NotificationResponse response) {
+        // Handle notification tap
+        print('Notification tapped: ${response.payload}');
+      },
+    );
+    print('✅ Notification permission requested and local notifications initialized.');
+
+    // Handle messages received while the app is in the foreground
+    // We will not show notifications automatically for data messages here.
+    // The local notification is triggered by the background service after API response.
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      print('🔔 Foreground message received: ${message.messageId}');
+      // Optionally process the message data if needed when app is in foreground
+      // For example, if you wanted to update UI in real-time.
+      // print('Foreground message data: ${message.data}');
+    });
+
+    // Background messages are handled by a top-level function.
+    // Ensure firebaseMessagingBackgroundHandler is defined outside of any class.
 
     // Get FCM token and update it
     await _updateFCMToken();
@@ -43,16 +62,6 @@ class NotificationService {
     _messaging.onTokenRefresh.listen((token) async {
       // Update token in your backend
       await _updateFCMToken();
-    });
-
-    // Handle incoming messages when app is in foreground
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      _showNotification(message);
-    });
-
-    // Handle notification tap when app is in background
-    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      // Handle notification tap
     });
   }
 
