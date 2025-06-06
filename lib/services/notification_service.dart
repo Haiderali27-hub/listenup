@@ -7,19 +7,23 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class NotificationService {
-  final FirebaseMessaging _fcm = FirebaseMessaging.instance;
+  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static const String _baseUrl = 'http://16.171.115.187:8000';
 
   Future<void> initialize() async {
-    // Request permission for notifications
-    await _fcm.requestPermission(
+    print('🔑 NotificationService initializing...');
+
+    // Request notification permissions
+    NotificationSettings settings = await _messaging.requestPermission(
       alert: true,
       badge: true,
       sound: true,
     );
+
+    print('📱 Notification permission status: ${settings.authorizationStatus}');
 
     // Initialize local notifications
     const initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -29,24 +33,16 @@ class NotificationService {
       iOS: initializationSettingsIOS,
     );
 
-    await _localNotifications.initialize(
-      initializationSettings,
-      onDidReceiveNotificationResponse: (NotificationResponse response) {
-        // Handle notification tap
-      },
-    );
+    await _localNotifications.initialize(initializationSettings);
+    print('✅ Notification permission requested.');
 
-    // Get initial token and register it
-    String? token = await _fcm.getToken();
-    if (token != null) {
-      await _updateFcmToken(token);
-      await _saveFcmTokenToFirestore(token);
-    }
+    // Get FCM token and update it
+    await _updateFCMToken();
 
     // Handle FCM token refresh
-    _fcm.onTokenRefresh.listen((token) async {
+    _messaging.onTokenRefresh.listen((token) async {
       // Update token in your backend
-      _updateFcmToken(token);
+      await _updateFCMToken();
     });
 
     // Handle incoming messages when app is in foreground
@@ -60,48 +56,37 @@ class NotificationService {
     });
   }
 
-  Future<void> _updateFcmToken(String token) async {
+  Future<void> _updateFCMToken() async {
     try {
+      print('🔄 Attempting to update FCM token with backend...');
+      
       // Get the current user's ID token
-      String? idToken = await _auth.currentUser?.getIdToken();
+      print('🔍 Getting current user ID token...');
+      final idToken = await _auth.currentUser?.getIdToken();
+      print('✅ Got ID token: ${idToken != null ? 'Present' : 'Missing'}');
+
       if (idToken == null) {
-        print('No user logged in, cannot register device token');
+        print('❌ No ID token available, cannot update FCM token');
         return;
       }
 
-      // Register the device token with the backend
-      final request = http.MultipartRequest('POST', Uri.parse('$_baseUrl/auth/register-device-token/')) //url for fcm and id tokem
-        ..fields['token'] = idToken
-        ..fields['device_token'] = token;
+      // Get the FCM token
+      final fcmToken = await _messaging.getToken();
+      if (fcmToken == null) {
+        print('❌ No FCM token available');
+        return;
+      }
 
-      final streamed = await request.send();
-      final response = await http.Response.fromStream(streamed);
+      print('✅ Got FCM token: ${fcmToken.substring(0, 10)}...');
 
-      if (response.statusCode == 200) {
-        print('Device token registered successfully');
-      } else {
-        print('Failed to register device token: ${response.statusCode}');
-        print('Response body: ${response.body}');
+      // Save the FCM token to Firestore
+      final user = _auth.currentUser;
+      if (user != null) {
+        await _firestore.collection('users').doc(user.uid).set({'fcmToken': fcmToken}, SetOptions(merge: true));
+        print('✅ FCM token saved to Firestore');
       }
     } catch (e) {
-      print('Error registering device token: $e');
-    }
-  }
-
-  Future<void> _saveFcmTokenToFirestore(String token) async {
-    final user = _auth.currentUser;
-    if (user == null) {
-      print('❌ No user logged in, cannot save FCM token to Firestore');
-      return;
-    }
-    try {
-      await _firestore.collection('users').doc(user.uid).set({
-        'fcmToken': token,
-        'lastUpdated': FieldValue.serverTimestamp(), // Optional: track last update time
-      }, SetOptions(merge: true)); // Use merge: true to update without overwriting other fields
-      print('✅ Successfully saved FCM token to Firestore for user ${user.uid}');
-    } catch (e) {
-      print('❌ Error saving FCM token to Firestore: $e');
+      print('❌ Error updating FCM token: $e');
     }
   }
 
@@ -161,7 +146,40 @@ class NotificationService {
     );
   }
 
+  Future<void> showNotification({
+    required String title,
+    required String body,
+  }) async {
+    try {
+      const androidDetails = AndroidNotificationDetails(
+        'sound_detection_channel',
+        'Sound Detection',
+        channelDescription: 'Notifications for detected sounds',
+        importance: Importance.high,
+        priority: Priority.high,
+      );
+
+      const iosDetails = DarwinNotificationDetails();
+
+      const details = NotificationDetails(
+        android: androidDetails,
+        iOS: iosDetails,
+      );
+
+      await _localNotifications.show(
+        DateTime.now().millisecond,
+        title,
+        body,
+        details,
+      );
+
+      print('✅ Local notification shown: $title - $body');
+    } catch (e) {
+      print('❌ Error showing notification: $e');
+    }
+  }
+
   Future<String?> getToken() async {
-    return await _fcm.getToken();
+    return await _messaging.getToken();
   }
 } 

@@ -28,10 +28,13 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeServices();
-    printFcmToken();
-    printIdToken();
-    printAccessToken();
+    // Add a small delay before initializing services
+    Future.delayed(const Duration(milliseconds: 1000), () {
+      _initializeServices();
+      printFcmToken();
+      printIdToken();
+      printAccessToken();
+    });
     micListening.addListener(_micListener);
   }
 
@@ -41,16 +44,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _initializeServices() async {
     try {
+      print('🔑 Initializing services...');
       await _notificationService.initialize();
+      print('✅ NotificationService initialized.');
+
       await BackgroundService().initialize();
-      } catch (e) {
+      print('✅ BackgroundService initialized.');
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error initializing services: $e')),
         );
       }
-      }
     }
+  }
 
   void toggleListening() async {
     try {

@@ -52,12 +52,12 @@ class _SignupScreenState extends State<SignupScreen> {
       });
 
       try {
-        // Call Firebase registration
+      // Call Firebase registration
         final user = await _firebaseService.registerWithEmailAndPassword(
-          _emailController.text.trim(),
-          _passwordController.text,
-          _nameController.text.trim(),
-        );
+        _emailController.text.trim(),
+        _passwordController.text,
+        _nameController.text.trim(),
+      );
 
         if (user != null) {
           Get.snackbar(
@@ -69,7 +69,7 @@ class _SignupScreenState extends State<SignupScreen> {
             duration: const Duration(seconds: 2),
           );
           // Navigate to login screen after successful registration
-          Get.offAllNamed(AppRoutes.login);
+      Get.offAllNamed(AppRoutes.login);
         }
       } finally {
         if (mounted) {
@@ -143,10 +143,10 @@ class _SignupScreenState extends State<SignupScreen> {
                       onChanged: _isLoading
                           ? null
                           : (value) {
-                              setState(() {
-                                _agreeToTerms = value ?? false;
-                              });
-                            },
+                        setState(() {
+                          _agreeToTerms = value ?? false;
+                        });
+                      },
                     ),
                     const Expanded(
                       child: Text.rich(

@@ -39,18 +39,75 @@ class BackgroundService {
   static const Duration _retryDelay = Duration(seconds: 5);
   static const int _maxRetries = 3;
   static const Duration _requestTimeout = Duration(seconds: 30);
+  Timer? _recordingTimer;
+  bool _isProcessing = false;
 
   Future<void> initialize() async {
     if (_isInitialized) return;
 
     try {
+      print('🔍 Checking microphone permissions...');
+      
+      // First check if permission is already granted
+      var status = await Permission.microphone.status;
+      print('📱 Current microphone permission status: $status');
+      
+      if (status.isDenied) {
+        print('🔒 Requesting microphone permission...');
+        status = await Permission.microphone.request();
+        print('📱 New microphone permission status: $status');
+      }
+      
+      if (!status.isGranted) {
+        throw Exception('Microphone permission not granted. Current status: $status');
+      }
+
+      // Verify recorder permission
+      print('🔍 Verifying audio recorder permission...');
       final hasPermission = await _audioRecorder.hasPermission();
+      print('📱 Audio recorder permission status: $hasPermission');
+      
       if (!hasPermission) {
-        throw Exception('Microphone permission not granted or denied');
+        throw Exception('Audio recorder permission not granted');
+      }
+
+      // Test recorder initialization
+      print('🔍 Testing recorder initialization...');
+      try {
+        final directory = await getApplicationDocumentsDirectory();
+        final testPath = '${directory.path}/test_recording.wav';
+        print('📁 Test recording path: $testPath');
+        
+        await _audioRecorder.start(
+          const RecordConfig(
+            encoder: AudioEncoder.pcm16bits,
+            sampleRate: 16000,
+            numChannels: 1,
+            bitRate: 16000,
+          ),
+          path: testPath,
+        );
+        
+        // Wait a short time to ensure recording starts
+        await Future.delayed(const Duration(milliseconds: 500));
+        
+        await _audioRecorder.stop();
+        
+        final testFile = File(testPath);
+        if (await testFile.exists()) {
+          final size = await testFile.length();
+          print('📊 Test recording file size: $size bytes');
+          await testFile.delete();
+        } else {
+          print('❌ Test recording file was not created');
+        }
+      } catch (e) {
+        print('❌ Failed to initialize audio recorder: $e');
+        throw Exception('Failed to initialize audio recorder: $e');
       }
       
       _isInitialized = true;
-      print('🎤 Audio recorder initialized successfully (using record package)');
+      print('✅ Audio recorder initialized successfully');
     } catch (e) {
       print('❌ Error initializing background service: $e');
       rethrow;
@@ -59,7 +116,7 @@ class BackgroundService {
 
   Future<void> startListening() async {
     print('🎤 Starting to listen...');
-    
+
     // If already listening or stopping, wait for stop to complete
     if (_isListening || _isStopping) {
       print('⚠️ Already listening or stopping, waiting for stop to complete...');
@@ -69,73 +126,139 @@ class BackgroundService {
     }
 
     try {
-      print('🎤 Starting audio recorder (using record package)...');
-      final directory = await getApplicationDocumentsDirectory();
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final path = '${directory.path}/audio_$timestamp.wav';
-      
-      await _audioRecorder.start(
-        const RecordConfig(
-          encoder: AudioEncoder.wav,
-          sampleRate: 44100,
-          numChannels: 1,
-          bitRate: 128000,
-        ),
-        path: path,
-      );
-      
-      _isListening = true;
-      _currentRecordingPath = path;
-      print('✅ Recording started successfully at: $path');
+      // Explicitly check and request microphone permission before starting recorder
+      var status = await Permission.microphone.status;
+      print('📱 Current microphone permission status before recording: $status');
 
-      // Start the detection timer
-      _startDetectionTimer();
+      if (status.isDenied) {
+        print('🔒 Requesting microphone permission before recording...');
+        status = await Permission.microphone.request();
+        print('📱 New microphone permission status after request: $status');
+      }
+
+      if (!status.isGranted) {
+        print('❌ Microphone permission not granted, cannot start recording.');
+        throw Exception('Microphone permission not granted');
+      }
+
+      _startRecordingCycle();
     } catch (e) {
-      print('❌ Error starting recording: $e');
+      print('❌ Error starting audio recorder: $e');
       _isListening = false;
-      _currentRecordingPath = null;
       rethrow;
     }
   }
 
-  Future<void> stopListening() async {
-    print('🛑 Attempting to stop listening...');
-    
-    if (_isStopping) {
-      print('⚠️ Already in the process of stopping, returning...');
-      return;
+  Future<void> _startRecordingCycle() async {
+    if (!_isListening && !_isStopping && !_isProcessing) {
+      try {
+        final directory = await getApplicationDocumentsDirectory();
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final path = '${directory.path}/audio_$timestamp.wav';
+
+        print('🎤 Starting new recording cycle at: $path');
+        
+        // Start the audio recorder with proper configuration
+        await _audioRecorder.start(
+          const RecordConfig(
+            encoder: AudioEncoder.wav,
+            sampleRate: 16000,
+            numChannels: 1,
+            bitRate: 128000,
+          ),
+          path: path,
+        );
+
+        _isListening = true;
+        print('✅ Recording started successfully');
+
+        // Start a timer to stop the recording after 5 seconds
+        _recordingTimer = Timer(const Duration(seconds: 5), () async {
+          if (_isListening) {
+            print('⏱️ 5-second recording duration reached, processing...');
+            await _processRecording(path);
+          }
+        });
+      } catch (e) {
+        print('❌ Error in recording cycle: $e');
+        _isListening = false;
+      }
     }
-    
+  }
+
+  Future<void> _processRecording(String path) async {
+    if (_isProcessing) return;
+    _isProcessing = true;
+
+    try {
+      // Stop the current recording
+      await stopListening();
+      print('✅ Recording stopped for processing');
+
+      // Process the recording
+      print('🔄 Processing recording at: $path');
+      final file = File(path);
+      if (await file.exists()) {
+        final size = await file.length();
+        print('📊 Recording size: $size bytes');
+
+        // Send to backend
+        print('📡 Sending to backend...');
+        final result = await _soundService.detectSound(path);
+        
+        if (result != null) {
+          print('✅ Sound detection result received: $result');
+          
+          // Save to Firestore
+          await _saveToFirestore(result);
+          
+          // Send notification
+          await _notificationService.showNotification(
+            title: 'Sound Detected',
+            body: 'Detected: ${result['label'] ?? 'Unknown Sound'} (${result['confidence']?.toString() ?? '0'}% confidence)',
+          );
+          
+          print('✅ Processing cycle completed successfully');
+        } else {
+          print('❌ No result received from backend');
+        }
+      } else {
+        print('❌ Recording file not found at: $path');
+      }
+    } catch (e) {
+      print('❌ Error processing recording: $e');
+    } finally {
+      _isProcessing = false;
+      // Start the next recording cycle
+      _startRecordingCycle();
+    }
+  }
+
+  Future<void> stopListening() async {
+    if (!_isListening) return;
+
+    print('🛑 Attempting to stop listening...');
     _isStopping = true;
 
     try {
-      // First cancel the timer
-      if (_detectionTimer != null) {
-        print('⏱️ Cancelling detection timer...');
-        _detectionTimer!.cancel();
-        _detectionTimer = null;
-      }
+      // Cancel the recording timer if it exists
+      _recordingTimer?.cancel();
+      _recordingTimer = null;
 
-      // Then stop the recorder if it's active
-      if (_isListening) {
-        print('⏹️ Stopping audio recorder...');
-        try {
-          await _audioRecorder.stop();
-          print('✅ Recording stopped successfully');
-        } catch (e) {
-          print('❌ Error stopping recorder: $e');
-        } finally {
-          _isListening = false;
-          _currentRecordingPath = null;
-        }
-      }
+      // Cancel the detection timer
+      _detectionTimer?.cancel();
+      _detectionTimer = null;
 
-      print('✅ Stop listening completed successfully');
+      // Stop the audio recorder
+      print('⏹️ Stopping audio recorder...');
+      await _audioRecorder.stop();
+      _isListening = false;
+      print('✅ Recording stopped successfully');
     } catch (e) {
-      print('❌ Error in stopListening: $e');
-      rethrow;
+      print('❌ Error stopping recording: $e');
     } finally {
       _isStopping = false;
+      print('✅ Stop listening completed successfully');
     }
   }
 
@@ -282,10 +405,10 @@ class BackgroundService {
       
       await _audioRecorder.start(
         const RecordConfig(
-          encoder: AudioEncoder.wav,
-          sampleRate: 44100,
+          encoder: AudioEncoder.pcm16bits,
+          sampleRate: 16000,
           numChannels: 1,
-          bitRate: 128000,
+          bitRate: 16000,
         ),
         path: newFilePath,
       );
@@ -352,4 +475,25 @@ class BackgroundService {
   bool get isListening => _isListening;
   
   String? get lastRecordedFilePath => _lastRecordedFilePath;
+
+  Future<void> _saveToFirestore(Map<String, dynamic> result) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        print('❌ No user logged in, cannot save to Firestore');
+        return;
+      }
+
+      await FirebaseFirestore.instance.collection('sound_detections').add({
+        'userId': user.uid,
+        'label': result['label'],
+        'confidence': result['confidence'],
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
+      print('✅ Sound detection saved to Firestore');
+    } catch (e) {
+      print('❌ Error saving to Firestore: $e');
+    }
+  }
 } 

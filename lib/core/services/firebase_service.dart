@@ -44,18 +44,25 @@ class FirebaseService {
           print('Access Token is null');
         }
         
-        // Print FCM Token
-        final fcmToken = await FirebaseMessaging.instance.getToken();
-        print('\n--- FCM Token ---');
-        print('FCM Token: $fcmToken');
-        print('FCM Token Length: ${fcmToken?.length ?? 0}');
-        if (fcmToken != null) {
-          print('FCM Token First 10 chars: ${fcmToken.substring(0, fcmToken.length > 10 ? 10 : fcmToken.length)}...');
-        } else {
-          print('FCM Token is null');
-        }
         print('=======================================\n');
-        
+
+        // Attempt to get and print FCM token, but don't block login if it fails
+        try {
+          final fcmToken = await FirebaseMessaging.instance.getToken();
+          print('\n--- FCM Token ---');
+          print('FCM Token: $fcmToken');
+          print('FCM Token Length: ${fcmToken?.length ?? 0}');
+          if (fcmToken != null) {
+            print('FCM Token First 10 chars: ${fcmToken.substring(0, fcmToken.length > 10 ? 10 : fcmToken.length)}...');
+          } else {
+             print('FCM Token is null');
+          }
+           print('========================\n');
+        } catch (e) {
+          print('❌ Error getting FCM token after login: $e');
+          // Log the error but continue, as core authentication succeeded
+        }
+
         Get.offAllNamed(AppRoutes.home);
       }
       return user;
