@@ -11,7 +11,7 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  static const String _baseUrl = 'http://16.171.115.187:8000';
+  static const String _baseUrl = 'http://13.61.5.249:8000';
 
   Future<void> initialize() async {
     print('🔑 NotificationService initializing...');

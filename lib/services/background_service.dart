@@ -21,7 +21,7 @@ class BackgroundService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final NotificationService _notificationService = NotificationService();
-  static const String _baseUrl = 'http://16.171.115.187:8000';
+  static const String _baseUrl = 'http://13.61.5.249:8000';
   Timer? _detectionTimer;
   bool _isInitialized = false;
   bool _isListening = false;
