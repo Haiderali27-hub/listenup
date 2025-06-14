@@ -10,6 +10,8 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import 'package:sound_app/services/notification_service.dart';
+import 'package:flutter/material.dart';
+import 'package:synchronized/synchronized.dart';
 
 class BackgroundService {
   static final BackgroundService _instance = BackgroundService._internal();
@@ -21,6 +23,7 @@ class BackgroundService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final NotificationService _notificationService = NotificationService();
+  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
   static const String _baseUrl = 'http://13.61.5.249:8000';
   Timer? _detectionTimer;
   bool _isInitialized = false;
@@ -41,6 +44,12 @@ class BackgroundService {
   static const Duration _requestTimeout = Duration(seconds: 30);
   Timer? _recordingTimer;
   bool _isProcessing = false;
+  Directory? _appDir;
+  Function(String)? onShowMessage;
+  Function(bool)? onProcessingStateChanged;
+  final _lock = Lock();
+  bool _isStarting = false;
+  String? _processingPath;  // Separate path for processing
 
   Future<void> initialize() async {
     if (_isInitialized) return;
@@ -78,12 +87,13 @@ class BackgroundService {
         final testPath = '${directory.path}/test_recording.wav';
         print('📁 Test recording path: $testPath');
         
+        // Initialize recorder with proper configuration
         await _audioRecorder.start(
           const RecordConfig(
-            encoder: AudioEncoder.pcm16bits,
+            encoder: AudioEncoder.wav,
             sampleRate: 16000,
             numChannels: 1,
-            bitRate: 16000,
+            bitRate: 128000,
           ),
           path: testPath,
         );
@@ -91,15 +101,19 @@ class BackgroundService {
         // Wait a short time to ensure recording starts
         await Future.delayed(const Duration(milliseconds: 500));
         
+        // Stop recording
         await _audioRecorder.stop();
         
+        // Verify the test file was created
         final testFile = File(testPath);
         if (await testFile.exists()) {
           final size = await testFile.length();
           print('📊 Test recording file size: $size bytes');
           await testFile.delete();
+          print('✅ Test recording successful');
         } else {
           print('❌ Test recording file was not created');
+          throw Exception('Test recording file was not created');
         }
       } catch (e) {
         print('❌ Failed to initialize audio recorder: $e');
@@ -115,226 +129,233 @@ class BackgroundService {
   }
 
   Future<void> startListening() async {
-    print('🎤 Starting to listen...');
-
-    // If already listening or stopping, wait for stop to complete
-    if (_isListening || _isStopping) {
-      print('⚠️ Already listening or stopping, waiting for stop to complete...');
-      await stopListening();
-      // Add a small delay to ensure everything is cleaned up
-      await Future.delayed(const Duration(milliseconds: 500));
-    }
-
-    try {
-      // Explicitly check and request microphone permission before starting recorder
-      var status = await Permission.microphone.status;
-      print('📱 Current microphone permission status before recording: $status');
-
-      if (status.isDenied) {
-        print('🔒 Requesting microphone permission before recording...');
-        status = await Permission.microphone.request();
-        print('📱 New microphone permission status after request: $status');
+    print('🎤 Attempting to start listening...');
+    
+    return _lock.synchronized(() async {
+      if (_isListening || _isProcessing || _isStarting) {
+        print('⚠️ Already listening, processing, or starting');
+        return;
       }
 
-      if (!status.isGranted) {
-        print('❌ Microphone permission not granted, cannot start recording.');
-        throw Exception('Microphone permission not granted');
-      }
+      _isStarting = true;
+      try {
+        await _audioRecorder.initialize();
+        print('✅ Recorder initialized');
 
-      _startRecordingCycle();
-    } catch (e) {
-      print('❌ Error starting audio recorder: $e');
-      _isListening = false;
-      rethrow;
-    }
+        _currentRecordingPath = await _audioRecorder.start();
+        print('✅ Recording started at: $_currentRecordingPath');
+
+        _isListening = true;
+        _isStarting = false;
+
+        _startDetectionTimer();
+        print('✅ Detection timer started');
+      } catch (e) {
+        print('❌ Error starting listening: $e');
+        _isStarting = false;
+        _resetStates();
+        rethrow;
+      }
+    });
   }
 
   Future<void> _startRecordingCycle() async {
-    if (!_isListening && !_isStopping && !_isProcessing) {
-      try {
-        final directory = await getApplicationDocumentsDirectory();
-        final timestamp = DateTime.now().millisecondsSinceEpoch;
-        final path = '${directory.path}/audio_$timestamp.wav';
+    if (!_isListening || _isStopping) {
+      print('⚠️ Cannot start recording cycle - listening: $_isListening, stopping: $_isStopping');
+      return;
+    }
 
-        print('🎤 Starting new recording cycle at: $path');
-        
-        // Start the audio recorder with proper configuration
-        await _audioRecorder.start(
-          const RecordConfig(
-            encoder: AudioEncoder.wav,
-            sampleRate: 16000,
-            numChannels: 1,
-            bitRate: 128000,
-          ),
-          path: path,
-        );
+    try {
+      // Get the app directory for saving recordings
+      final appDir = await getApplicationDocumentsDirectory();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final path = '${appDir.path}/audio_$timestamp.wav';
+      
+      print('🎤 Starting new recording cycle at: $path');
+      
+      // Start recording with proper configuration
+      await _audioRecorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.wav,
+          sampleRate: 16000,
+          numChannels: 1,
+          bitRate: 128000,
+        ),
+        path: path,
+      );
+      
+      print('✅ Recording started successfully');
 
-        _isListening = true;
-        print('✅ Recording started successfully');
-
-        // Start a timer to stop the recording after 5 seconds
-        _recordingTimer = Timer(const Duration(seconds: 5), () async {
-          if (_isListening) {
-            print('⏱️ 5-second recording duration reached, processing...');
-            await _processRecording(path);
-          }
-        });
-      } catch (e) {
-        print('❌ Error in recording cycle: $e');
-        _isListening = false;
-      }
+      // Set up timer to stop recording after 5 seconds
+      _detectionTimer?.cancel();
+      _detectionTimer = Timer(const Duration(seconds: 5), () async {
+        if (_isListening && !_isStopping) {
+          print('⏱️ 5-second recording duration reached, processing...');
+          await _audioRecorder.stop();
+          print('✅ Recording stopped for processing');
+          await _processRecording(path);
+        }
+      });
+    } catch (e) {
+      print('❌ Error in recording cycle: $e');
+      _isListening = false;
+      _isStopping = false;
+      _isProcessing = false;
     }
   }
 
   Future<void> _processRecording(String path) async {
-    if (!_isListening) {
+    if (!_isListening || _isStopping) {
       print('⚠️ Service stopped during processing, aborting.');
-      _isProcessing = false;
       return;
     }
 
-    if (_isProcessing) return;
+    if (_isProcessing) {
+      print('⚠️ Already processing a recording, skipping.');
+      return;
+    }
+    
     _isProcessing = true;
+    onProcessingStateChanged?.call(true);
 
     try {
-      // Stop the current recording
-      await stopListening();
-      print('✅ Recording stopped for processing');
-
-      // Process the recording
       print('🔄 Processing recording at: $path');
       final file = File(path);
-      if (await file.exists()) {
-        final size = await file.length();
-        print('📊 Recording size: $size bytes');
+      if (!await file.exists()) {
+        throw Exception('Recording file not found');
+      }
 
-        // Send to backend
-        print('📡 Sending to backend...');
-        final result = await _soundService.detectSound(path);
+      final size = await file.length();
+      print('📊 Recording size: $size bytes');
 
-        if (result != null) {
-          print('✅ Sound detection result received: $result');
+      final result = await _soundService.detectSound(path);
+      print('✅ Sound detection result received: $result');
 
-          String detectedLabel = 'Unknown Sound';
-          String confidenceStr = '0';
-          double confidence = 0.0;
+      if (result != null) {
+        final pushResponse = result['push_response'];
+        if (pushResponse != null && pushResponse.isNotEmpty) {
+          final parts = pushResponse.split(',');
+          if (parts.length >= 3) {
+            final detectedLabel = parts[2];
+            final confidence = double.tryParse(parts[0]) ?? 0.0;
 
-          // Check and parse the push_response if it exists and is a string
-          if (result.containsKey('push_response') && result['push_response'] is String) {
-            final pushResponse = result['push_response'] as String;
-            print('🔄 Parsing push_response: $pushResponse');
-            final parts = pushResponse.split(',');
-            if (parts.length >= 3) {
-              // Assuming the format from logs is confidence,mid,label
-              confidenceStr = parts[0];
-              detectedLabel = parts[2];
-              confidence = double.tryParse(confidenceStr) ?? 0.0;
-              print('📊 Parsed label: $detectedLabel, confidence: $confidenceStr');
-            } else {
-                print('⚠️ push_response format unexpected or incomplete: $pushResponse');
-                 // Fallback to generic values if parsing fails
-                detectedLabel = 'Unknown Sound';
-                confidenceStr = '0';
-                confidence = 0.0;
+            await _handleSoundDetection({
+              'label': detectedLabel,
+              'confidence': confidence,
+            });
+
+            if (_isListening && !_isStopping) {
+              await _notificationService.showNotification(
+                title: 'Sound Detected',
+                body: 'Detected: $detectedLabel',
+              );
             }
-          } else {
-              print('⚠️ push_response missing or not a string in result');
           }
-
-          // Save to Firestore using the parsed data
-          await _saveToFirestore({
-            'label': detectedLabel,
-            'confidence': confidence,
-          });
-
-          // Always show a local notification using the parsed data
-          await _notificationService.showNotification(
-            title: 'Sound Detected',
-            body: 'Detected: $detectedLabel',
-          );
-
-          print('✅ Processing cycle completed successfully');
-        } else {
-          print('❌ No result received from backend');
-           // Show a generic notification if no result received
-           await _notificationService.showNotification(
-              title: 'Sound Detection Failed',
-              body: 'Could not detect sound. No response from server.',
-           );
         }
-      } else {
-        print('❌ Recording file not found at: $path');
-        // Show a generic notification if file not found
-         await _notificationService.showNotification(
-            title: 'Recording Error',
-            body: 'Could not find the recorded audio file.',
-         );
       }
     } catch (e) {
       print('❌ Error processing recording: $e');
-      // Show a generic notification on error
-       await _notificationService.showNotification(
+      if (_isListening && !_isStopping) {
+        await _notificationService.showNotification(
           title: 'Processing Error',
           body: 'An error occurred during sound detection.',
-       );
+        );
+      }
     } finally {
       _isProcessing = false;
-      // Start the next recording cycle
-      _startRecordingCycle();
+      onProcessingStateChanged?.call(false);
+
+      if (_isStopping) {
+        print('🛑 Stop was requested during processing, completing stop...');
+        try {
+          await _audioRecorder.stop();
+        } catch (e) {
+          print('⚠️ Error stopping recorder during cleanup: $e');
+        }
+        _resetStates();
+        return;
+      }
     }
   }
 
   Future<void> stopListening() async {
-    if (!_isListening) return;
-
     print('🛑 Attempting to stop listening...');
-    _isStopping = true;
+    
+    return _lock.synchronized(() async {
+      if (!_isListening && !_isProcessing) {
+        print('⚠️ Not listening or processing');
+        _resetStates();
+        return;
+      }
 
-    try {
-      // Cancel the recording timer if it exists
-      _recordingTimer?.cancel();
-      _recordingTimer = null;
+      _isStopping = true;
 
-      // Cancel the detection timer
-      _detectionTimer?.cancel();
-      _detectionTimer = null;
+      try {
+        _detectionTimer?.cancel();
+        _detectionTimer = null;
 
-      // Stop the audio recorder
-      print('⏹️ Stopping audio recorder...');
-      await _audioRecorder.stop();
-      _isListening = false;
-      print('✅ Recording stopped successfully');
-    } catch (e) {
-      print('❌ Error stopping recording: $e');
-    } finally {
-      _isStopping = false;
-      print('✅ Stop listen completed successfully');
-    }
+        if (_isProcessing) {
+          print('⏳ Currently processing audio, waiting for completion...');
+          onShowMessage?.call('Please wait while processing audio...');
+          // Don't return, let it complete the stop operation
+        }
+
+        print('⏹️ Stopping audio recorder...');
+        await _audioRecorder.stop();
+        _currentRecordingPath = null;
+        _processingPath = null;
+
+        _resetStates();
+        print('✅ Successfully stopped listening');
+      } catch (e) {
+        print('❌ Error stopping listening: $e');
+        _resetStates();
+        rethrow;
+      }
+    });
+  }
+
+  void _resetStates() {
+    _isListening = false;
+    _isProcessing = false;
+    _isStopping = false;
+    _isStarting = false;
+    _currentRecordingPath = null;
+    _processingPath = null;
+    _detectionTimer?.cancel();
+    _detectionTimer = null;
+    onProcessingStateChanged?.call(false);
   }
 
   void _startDetectionTimer() {
-    print('⏱️ Starting detection timer...');
     _detectionTimer?.cancel();
-    _detectionTimer = Timer.periodic(_detectionInterval, (timer) async {
+    _detectionTimer = Timer(const Duration(seconds: 5), () async {
       if (!_isListening || _isStopping) {
-        print('⚠️ Timer tick but not listening or stopping, cancelling timer...');
-        timer.cancel();
+        print('⚠️ Timer triggered but not listening or stopping');
+        return;
+      }
+
+      if (_currentRecordingPath == null) {
+        print('⚠️ No recording path available');
         return;
       }
 
       try {
-        await _processCurrentRecording();
+        print('⏱️ 5-second recording duration reached, processing...');
+        // Store the current path and start a new recording
+        _processingPath = _currentRecordingPath;
+        _currentRecordingPath = await _audioRecorder.start();
+        print('✅ Started new recording at: $_currentRecordingPath');
+        
+        // Process the previous recording
+        if (_processingPath != null) {
+          await _processRecording(_processingPath!);
+        }
       } catch (e) {
         print('❌ Error in detection timer: $e');
-        _consecutiveFailures++;
-        
-        if (_consecutiveFailures >= _maxConsecutiveFailures) {
-          print('❌ Too many consecutive failures, stopping detection...');
-          await stopListening();
-        }
+        _resetStates();
       }
     });
-    print('✅ Detection timer started');
   }
 
   Future<void> _processCurrentRecording() async {
@@ -460,10 +481,10 @@ class BackgroundService {
       
       await _audioRecorder.start(
         const RecordConfig(
-          encoder: AudioEncoder.pcm16bits,
+          encoder: AudioEncoder.wav,
           sampleRate: 16000,
           numChannels: 1,
-          bitRate: 16000,
+          bitRate: 128000,
         ),
         path: newFilePath,
       );
@@ -488,34 +509,24 @@ class BackgroundService {
     }
   }
 
-  Future<void> _handleSoundDetection(Map<String, dynamic> result) async {
-    print('\n📝 --- Handling Sound Detection ---');
-    final userId = _auth.currentUser?.uid;
-    if (userId == null) {
-      print('⚠️ No user ID found, cannot save detection');
-      return;
-    }
-
-    print('💾 Writing to Firestore: $result');
+  Future<void> _handleSoundDetection(Map<String, dynamic> detection) async {
     try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        print('⚠️ No user logged in, skipping Firestore save');
+        return;
+      }
+
       await _firestore.collection('sound_detections').add({
-        'userId': userId,
-        'label': result['label'],
-        'confidence': result['confidence'],
+        ...detection,
+        'userId': user.uid,
         'timestamp': FieldValue.serverTimestamp(),
       });
       print('✅ Successfully saved to Firestore');
-
-      // Trigger local notification after successful save
-      await _notificationService.showLocalNotification(
-        title: 'Sound Detected!',
-        body: 'Detected sound: ${result['label']}',
-      );
-
     } catch (e) {
-      print('❌ Error in _handleSoundDetection: $e');
+      print('❌ Error saving to Firestore: $e');
+      rethrow;
     }
-    print('📝 --- Sound Detection Handling Complete ---\n');
   }
 
   Future<void> dispose() async {
@@ -550,5 +561,14 @@ class BackgroundService {
     } catch (e) {
       print('❌ Error saving to Firestore: $e');
     }
+  }
+
+  // Setter for the message callback
+  void setMessageCallback(Function(String) callback) {
+    onShowMessage = callback;
+  }
+
+  void setProcessingCallback(Function(bool) callback) {
+    onProcessingStateChanged = callback;
   }
 } 
