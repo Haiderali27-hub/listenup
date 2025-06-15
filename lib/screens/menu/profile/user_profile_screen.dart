@@ -7,6 +7,8 @@ import 'package:sound_app/routes/app_routes.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:sound_app/services/auth_service.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class UserProfileScreen extends StatefulWidget {
   final bool fromBottomNav;
@@ -31,6 +33,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   final _confirmPasswordController = TextEditingController();
   bool _isChangingPassword = false;
   String? _userEmail;
+  String? _profileImageUrl;
 
   @override
   void initState() {
@@ -50,26 +53,26 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   Future<void> _loadUserProfile() async {
     setState(() => _isLoading = true);
     try {
-      print('Fetching user profile...');
+      print('Fetching user info...');
       print('Using access token: \\${AuthService.accessToken}');
       final response = await http.get(
-        Uri.parse('http://13.61.5.249:8000/auth/user/profile/'),
+        Uri.parse('http://13.61.5.249:8000/auth/me/'),
         headers: {
           'Content-Type': 'application/json',
           if (AuthService.accessToken != null)
             'Authorization': 'Bearer ${AuthService.accessToken}',
         },
       );
-      print('Profile response status: \\${response.statusCode}');
-      print('Profile response body: \\${response.body}');
+      print('User info response status: \\${response.statusCode}');
+      print('User info response body: \\${response.body}');
       if (response.statusCode == 200) {
         final profile = jsonDecode(response.body);
         _nameController.text = profile['fullname'] ?? '';
         _userEmail = profile['email'] ?? '';
-        _currentAvatarNumber = profile['avatarNumber'];
+        _profileImageUrl = profile['profile_image'];
       }
     } catch (e) {
-      print('Error fetching profile: \\${e.toString()}');
+      print('Error fetching user info: \\${e.toString()}');
     } finally {
       setState(() => _isLoading = false);
     }
@@ -122,6 +125,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   Future<void> _handleLogout() async {
     setState(() => _isLoading = true);
     try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('access_token');
+      AuthService.accessToken = null;
       Get.offAllNamed(AppRoutes.login);
     } catch (e) {
       if (mounted) {
@@ -216,6 +222,38 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     }
   }
 
+  Future<void> _pickAndUploadImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile == null) return;
+    setState(() => _isLoading = true);
+    try {
+      print('Uploading profile image...');
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('http://13.61.5.249:8000/auth/user/profile-picture/'),
+      );
+      request.headers['Authorization'] = 'Bearer \\${AuthService.accessToken}';
+      request.files.add(await http.MultipartFile.fromPath('profile_image', pickedFile.path));
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+      print('Profile image upload status: \\${response.statusCode}');
+      print('Profile image upload body: \\${response.body}');
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        _profileImageUrl = data['profile_image'];
+        Get.snackbar('Success', 'Profile image updated!', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.green, colorText: Colors.white);
+      } else {
+        Get.snackbar('Error', 'Failed to upload image', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
+      }
+    } catch (e) {
+      print('Profile image upload exception: \\${e.toString()}');
+      Get.snackbar('Error', 'An error occurred. Please try again.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -269,7 +307,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
                     // Avatar Section
                     GestureDetector(
-                      onTap: _handleAvatarSelection,
+                      onTap: _pickAndUploadImage,
                       child: Column(
                         children: [
                           Container(
@@ -283,12 +321,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                               ),
                             ),
                             child: ClipOval(
-                              child: Image.asset(
-                                _userProfileService.getAvatarImagePath(
-                                  _currentAvatarNumber ?? 1,
-                                ),
-                                fit: BoxFit.cover,
-                              ),
+                              child: _profileImageUrl != null && _profileImageUrl!.isNotEmpty
+                                  ? Image.network(_profileImageUrl!, fit: BoxFit.cover)
+                                  : Image.asset(
+                                      _userProfileService.getAvatarImagePath(_currentAvatarNumber ?? 1),
+                                      fit: BoxFit.cover,
+                                    ),
                             ),
                           ),
                           const SizedBox(height: 8),

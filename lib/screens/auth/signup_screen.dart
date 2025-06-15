@@ -2,11 +2,13 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/utils/validators.dart';
 import '../../routes/app_routes.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/primary_button.dart';
+import '../../services/auth_service.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -64,15 +66,24 @@ class _SignupScreenState extends State<SignupScreen> {
         print('Registration response status: ${response.statusCode}');
         print('Registration response body: ${response.body}');
         if (response.statusCode == 201 || response.statusCode == 200) {
-          Get.snackbar(
-            'Success',
-            'Account created successfully!',
-            snackPosition: SnackPosition.BOTTOM,
-            backgroundColor: Colors.green,
-            colorText: Colors.white,
-            duration: const Duration(seconds: 2),
-          );
-          Get.offAllNamed(AppRoutes.login);
+          final data = jsonDecode(response.body);
+          if (data['access_token'] != null) {
+            AuthService.accessToken = data['access_token'];
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('access_token', AuthService.accessToken!);
+            await prefs.setBool('onboarding_complete', true);
+            Get.offAllNamed(AppRoutes.home);
+          } else {
+            Get.snackbar(
+              'Success',
+              'Account created successfully!',
+              snackPosition: SnackPosition.BOTTOM,
+              backgroundColor: Colors.green,
+              colorText: Colors.white,
+              duration: const Duration(seconds: 2),
+            );
+            Get.offAllNamed(AppRoutes.login);
+          }
         } else {
           final error = jsonDecode(response.body);
           print('Registration error: ${error['detail'] ?? response.body}');

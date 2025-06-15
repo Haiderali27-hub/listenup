@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sound_app/services/auth_service.dart';
 
 import 'routes/app_routes.dart';
 import 'screens/auth/login_screen.dart';
@@ -15,23 +17,18 @@ void main() async {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  const MyApp({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return GetMaterialApp(
-      title: 'Listen Up',
       debugShowCheckedModeBanner: false,
+      title: 'Listen Up',
       initialRoute: AppRoutes.splash,
-      getPages: [
-        GetPage(name: AppRoutes.splash, page: () => const SplashScreen()),
-        GetPage(
-            name: AppRoutes.onboarding, page: () => const OnboardingScreen()),
-        GetPage(name: AppRoutes.login, page: () => const LoginScreen()),
-        GetPage(name: AppRoutes.signup, page: () => const SignupScreen()),
-        GetPage(name: AppRoutes.home, page: () => const HomeScreen()),
-        GetPage(name: AppRoutes.resetPassword, page: () => const ResetPasswordScreen()),
-      ],
+      getPages: AppRoutes.routes,
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+      ),
     );
   }
 }

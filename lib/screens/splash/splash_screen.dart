@@ -7,6 +7,8 @@ import 'package:get/get.dart';
 import 'package:sound_app/core/constants/images.dart';
 import 'package:sound_app/routes/app_routes.dart';
 import 'package:sound_app/screens/home/home_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sound_app/services/auth_service.dart';
 
 import '../onboarding/onboarding_screen.dart';
 
@@ -21,43 +23,25 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeApp();
+    _navigateFromSplash();
   }
 
-  Future<void> _initializeApp() async {
-    try {
-      // Initialize Firebase
-      // await Firebase.initializeApp();
-      debugPrint('Firebase initialized successfully');
-
-      // Check authentication state
-      // final firebaseService = FirebaseService();
-      final user = null;
-      
-      // Wait for 2 seconds to show splash screen
-      await Future.delayed(const Duration(seconds: 2));
-      
-      if (!mounted) return;
-
-      if (user != null) {
-        debugPrint('User is logged in, navigating to home screen');
-        Get.offAllNamed(AppRoutes.home);
-      } else {
-        debugPrint('No user logged in, navigating to onboarding');
-        Get.offAllNamed(AppRoutes.onboarding);
-      }
-    } catch (e) {
-      debugPrint('Error during app initialization: $e');
-      if (!mounted) return;
-      
-      // Show error and navigate to onboarding
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to initialize app. Please try again.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+  void _navigateFromSplash() async {
+    final prefs = await SharedPreferences.getInstance();
+    final onboardingComplete = prefs.getBool('onboarding_complete') ?? false;
+    final token = prefs.getString('access_token');
+    print('SplashScreen: onboardingComplete=$onboardingComplete, token=$token');
+    await Future.delayed(const Duration(seconds: 2));
+    if (!onboardingComplete) {
+      print('SplashScreen: Navigating to onboarding');
       Get.offAllNamed(AppRoutes.onboarding);
+    } else if (token != null && token.isNotEmpty) {
+      print('SplashScreen: Navigating to home');
+      AuthService.accessToken = token;
+      Get.offAllNamed(AppRoutes.home);
+    } else {
+      print('SplashScreen: Navigating to login');
+      Get.offAllNamed(AppRoutes.login);
     }
   }
 

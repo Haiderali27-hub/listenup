@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../routes/app_routes.dart';
 import '../../widgets/custom_text_field.dart';
@@ -66,6 +67,9 @@ class _LoginScreenState extends State<LoginScreen> {
         final data = jsonDecode(response.body);
         AuthService.accessToken = data['access_token'];
         print('Access token set: \\${AuthService.accessToken}');
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('access_token', AuthService.accessToken!);
+        await prefs.setBool('onboarding_complete', true);
         Get.offAllNamed(AppRoutes.home);
         Get.snackbar(
           'Success',

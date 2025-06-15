@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:sound_app/core/constants/images.dart';
 import 'package:sound_app/routes/app_routes.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class OnboardingScreen extends StatelessWidget {
   const OnboardingScreen({super.key});
@@ -50,9 +51,7 @@ class OnboardingScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: ElevatedButton(
-                  onPressed: () {
-                    Get.toNamed(AppRoutes.signup);
-                  },
+                  onPressed: _completeOnboarding,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.transparent,
                     shadowColor: Colors.transparent,
@@ -89,5 +88,11 @@ class OnboardingScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  void _completeOnboarding() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('onboarding_complete', true);
+    Get.offAllNamed(AppRoutes.login);
   }
 }
