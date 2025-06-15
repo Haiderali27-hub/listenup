@@ -1,10 +1,10 @@
 import 'dart:async';
 
-import 'package:firebase_core/firebase_core.dart';
+// import 'package:firebase_core/firebase_core.dart';
+// import 'package:sound_app/core/services/firebase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:sound_app/core/constants/images.dart';
-import 'package:sound_app/core/services/firebase_service.dart';
 import 'package:sound_app/routes/app_routes.dart';
 import 'package:sound_app/screens/home/home_screen.dart';
 
@@ -27,12 +27,12 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _initializeApp() async {
     try {
       // Initialize Firebase
-      await Firebase.initializeApp();
+      // await Firebase.initializeApp();
       debugPrint('Firebase initialized successfully');
 
       // Check authentication state
-      final firebaseService = FirebaseService();
-      final user = firebaseService.getCurrentUser();
+      // final firebaseService = FirebaseService();
+      final user = null;
       
       // Wait for 2 seconds to show splash screen
       await Future.delayed(const Duration(seconds: 2));

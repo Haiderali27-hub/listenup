@@ -1,15 +1,12 @@
 import 'dart:convert';
 import 'dart:async';
 import 'package:http/http.dart' as http;
-import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 class SoundService {
   static const String _apiUrl = 'http://13.61.5.249:8000/auth/voice-detect/';
   static const String _registerUrl = 'http://13.61.5.249:8000/auth/register/';
   static const String _loginUrl = 'http://13.61.5.249:8000/auth/login/';
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   final Connectivity _connectivity = Connectivity();
   String? _backendToken;
   DateTime? _tokenExpiry;
@@ -49,16 +46,7 @@ class SoundService {
       _tokenRefreshCount++;
     }
 
-    // Get Firebase user info
-    final user = _auth.currentUser;
-    if (user == null) {
-      print('❌ No Firebase user logged in');
-      throw Exception('No user logged in');
-    }
-
     print('\n🔄 Starting backend authentication process...');
-    print('📧 Firebase email: ${user.email}');
-    print('🆔 Firebase UID: ${user.uid}');
 
     try {
       // First try to login with existing account
@@ -67,8 +55,8 @@ class SoundService {
         Uri.parse(_loginUrl),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'email': user.email,
-          'password': user.uid,
+          // 'email': user.email,
+          // 'password': user.uid,
         }),
       );
 
@@ -102,9 +90,9 @@ class SoundService {
           Uri.parse(_registerUrl),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
-            'email': user.email,
-            'password': user.uid,
-            'fullname': user.displayName ?? user.email?.split('@')[0] ?? 'User',
+            // 'email': user.email,
+            // 'password': user.uid,
+            'fullname': 'User',
           }),
         );
 
@@ -120,8 +108,8 @@ class SoundService {
             Uri.parse(_loginUrl),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({
-              'email': user.email,
-              'password': user.uid,
+              // 'email': user.email,
+              // 'password': user.uid,
             }),
           );
 
@@ -176,15 +164,6 @@ class SoundService {
       throw Exception('No internet connection available');
     }
 
-    // Get FCM token
-    print('Getting FCM token...');
-    final fcmToken = await FirebaseMessaging.instance.getToken();
-    if (fcmToken == null) {
-      print('❌ FCM token is null, cannot proceed');
-      throw Exception('FCM token is null');
-    }
-    print('✅ Got FCM token: ${fcmToken.substring(0, 10)}...');
-
     // Get backend token
     print('Getting backend token...');
     final backendToken = await _getBackendToken();
@@ -198,7 +177,7 @@ class SoundService {
         print('📤 Creating multipart request...');
         final request = http.MultipartRequest('POST', uri)
           ..files.add(await http.MultipartFile.fromPath('audio', path))
-          ..fields['token'] = fcmToken
+          ..fields['token'] = 'fcmToken'
           ..headers['Content-Type'] = 'multipart/form-data'
           ..headers['Authorization'] = 'Bearer $backendToken';
 

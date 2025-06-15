@@ -1,17 +1,17 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:sound_app/services/sound_service.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:http/http.dart' as http;
+
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 import 'package:sound_app/services/notification_service.dart';
-import 'package:flutter/material.dart';
+import 'package:sound_app/services/sound_service.dart';
 import 'package:synchronized/synchronized.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import '../../routes/app_routes.dart';
 
 class BackgroundService {
   static final BackgroundService _instance = BackgroundService._internal();
@@ -20,11 +20,7 @@ class BackgroundService {
 
   final AudioRecorder _audioRecorder = AudioRecorder();
   final SoundService _soundService = SoundService();
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   final NotificationService _notificationService = NotificationService();
-  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
-  static const String _baseUrl = 'http://13.61.5.249:8000';
   Timer? _detectionTimer;
   bool _isInitialized = false;
   bool _isListening = false;
@@ -49,33 +45,34 @@ class BackgroundService {
   Function(bool)? onProcessingStateChanged;
   final _lock = Lock();
   bool _isStarting = false;
-  String? _processingPath;  // Separate path for processing
+  String? _processingPath; // Separate path for processing
 
   Future<void> initialize() async {
     if (_isInitialized) return;
 
     try {
       print('🔍 Checking microphone permissions...');
-      
+
       // First check if permission is already granted
       var status = await Permission.microphone.status;
       print('📱 Current microphone permission status: $status');
-      
+
       if (status.isDenied) {
         print('🔒 Requesting microphone permission...');
         status = await Permission.microphone.request();
         print('📱 New microphone permission status: $status');
       }
-      
+
       if (!status.isGranted) {
-        throw Exception('Microphone permission not granted. Current status: $status');
+        throw Exception(
+            'Microphone permission not granted. Current status: $status');
       }
 
       // Verify recorder permission
       print('🔍 Verifying audio recorder permission...');
       final hasPermission = await _audioRecorder.hasPermission();
       print('📱 Audio recorder permission status: $hasPermission');
-      
+
       if (!hasPermission) {
         throw Exception('Audio recorder permission not granted');
       }
@@ -86,7 +83,7 @@ class BackgroundService {
         final directory = await getApplicationDocumentsDirectory();
         final testPath = '${directory.path}/test_recording.wav';
         print('📁 Test recording path: $testPath');
-        
+
         // Initialize recorder with proper configuration
         await _audioRecorder.start(
           const RecordConfig(
@@ -97,13 +94,13 @@ class BackgroundService {
           ),
           path: testPath,
         );
-        
+
         // Wait a short time to ensure recording starts
         await Future.delayed(const Duration(milliseconds: 500));
-        
+
         // Stop recording
         await _audioRecorder.stop();
-        
+
         // Verify the test file was created
         final testFile = File(testPath);
         if (await testFile.exists()) {
@@ -119,7 +116,7 @@ class BackgroundService {
         print('❌ Failed to initialize audio recorder: $e');
         throw Exception('Failed to initialize audio recorder: $e');
       }
-      
+
       _isInitialized = true;
       print('✅ Audio recorder initialized successfully');
     } catch (e) {
@@ -130,7 +127,7 @@ class BackgroundService {
 
   Future<void> startListening() async {
     print('🎤 Attempting to start listening...');
-    
+
     return _lock.synchronized(() async {
       if (_isListening || _isProcessing || _isStarting) {
         print('⚠️ Already listening, processing, or starting');
@@ -139,10 +136,19 @@ class BackgroundService {
 
       _isStarting = true;
       try {
-        await _audioRecorder.initialize();
+        // await _audioRecorder.initialize(); // Removed as it is not defined
         print('✅ Recorder initialized');
 
-        _currentRecordingPath = await _audioRecorder.start();
+        await _audioRecorder.start(
+          const RecordConfig(
+            encoder: AudioEncoder.wav,
+            sampleRate: 16000,
+            numChannels: 1,
+            bitRate: 128000,
+          ),
+          path: 'temp_recording.mp3',
+        );
+        _currentRecordingPath = 'temp_recording.mp3';
         print('✅ Recording started at: $_currentRecordingPath');
 
         _isListening = true;
@@ -161,7 +167,8 @@ class BackgroundService {
 
   Future<void> _startRecordingCycle() async {
     if (!_isListening || _isStopping) {
-      print('⚠️ Cannot start recording cycle - listening: $_isListening, stopping: $_isStopping');
+      print(
+          '⚠️ Cannot start recording cycle - listening: $_isListening, stopping: $_isStopping');
       return;
     }
 
@@ -170,9 +177,9 @@ class BackgroundService {
       final appDir = await getApplicationDocumentsDirectory();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final path = '${appDir.path}/audio_$timestamp.wav';
-      
+
       print('🎤 Starting new recording cycle at: $path');
-      
+
       // Start recording with proper configuration
       await _audioRecorder.start(
         const RecordConfig(
@@ -183,7 +190,7 @@ class BackgroundService {
         ),
         path: path,
       );
-      
+
       print('✅ Recording started successfully');
 
       // Set up timer to stop recording after 5 seconds
@@ -214,7 +221,7 @@ class BackgroundService {
       print('⚠️ Already processing a recording, skipping.');
       return;
     }
-    
+
     _isProcessing = true;
     onProcessingStateChanged?.call(true);
 
@@ -280,7 +287,7 @@ class BackgroundService {
 
   Future<void> stopListening() async {
     print('🛑 Attempting to stop listening...');
-    
+
     return _lock.synchronized(() async {
       if (!_isListening && !_isProcessing) {
         print('⚠️ Not listening or processing');
@@ -344,9 +351,18 @@ class BackgroundService {
         print('⏱️ 5-second recording duration reached, processing...');
         // Store the current path and start a new recording
         _processingPath = _currentRecordingPath;
-        _currentRecordingPath = await _audioRecorder.start();
+        await _audioRecorder.start(
+          const RecordConfig(
+            encoder: AudioEncoder.wav,
+            sampleRate: 16000,
+            numChannels: 1,
+            bitRate: 128000,
+          ),
+          path: 'temp_recording.mp3',
+        );
+        _currentRecordingPath = 'temp_recording.mp3';
         print('✅ Started new recording at: $_currentRecordingPath');
-        
+
         // Process the previous recording
         if (_processingPath != null) {
           await _processRecording(_processingPath!);
@@ -360,13 +376,14 @@ class BackgroundService {
 
   Future<void> _processCurrentRecording() async {
     if (!_isListening || _isStopping || _currentRecordingPath == null) {
-      print('⚠️ Cannot process recording: isListening=$_isListening, isStopping=$_isStopping, path=${_currentRecordingPath != null}');
+      print(
+          '⚠️ Cannot process recording: isListening=$_isListening, isStopping=$_isStopping, path=${_currentRecordingPath != null}');
       return;
     }
 
     print('🔄 Processing current recording...');
     final file = File(_currentRecordingPath!);
-    
+
     if (!await file.exists()) {
       print('❌ Recording file does not exist: ${_currentRecordingPath}');
       return;
@@ -396,12 +413,13 @@ class BackgroundService {
     }
 
     if (!_isListening || _isStopping || _currentRecordingPath == null) {
-      print('⚠️ Cannot detect sound: isListening=$_isListening, isStopping=$_isStopping, path=${_currentRecordingPath != null}');
+      print(
+          '⚠️ Cannot detect sound: isListening=$_isListening, isStopping=$_isStopping, path=${_currentRecordingPath != null}');
       return;
     }
 
     print('📁 Got audio file at: $_currentRecordingPath');
-    
+
     if (await file.exists()) {
       final fileSize = await file.length();
       print('📊 Audio file size: ${fileSize} bytes');
@@ -410,7 +428,7 @@ class BackgroundService {
         print('   Expected size > 44 bytes for 5 seconds of audio');
         print('   Current size: $fileSize bytes');
         print('   File path: $_currentRecordingPath');
-        
+
         try {
           final bytes = await file.readAsBytes();
           print('📝 First 100 bytes of file: ${bytes.take(100).toList()}');
@@ -423,13 +441,6 @@ class BackgroundService {
       }
     } else {
       print('❌ Error: Audio file does not exist!');
-      await _restartRecording();
-      return;
-    }
-
-    final user = _auth.currentUser;
-    if (user == null) {
-      print('⚠️ No user logged in, skipping detection');
       await _restartRecording();
       return;
     }
@@ -450,12 +461,14 @@ class BackgroundService {
 
           if (confidence != null && confidence > 0.7) {
             print('✅ High confidence detection! Saving to Firestore...');
-            await _handleSoundDetection({'label': label, 'confidence': confidence});
+            await _handleSoundDetection(
+                {'label': label, 'confidence': confidence});
           } else {
             print('⚠️ Confidence too low ($confidence), not saving.');
           }
         } else {
-          print('⚠️ Unexpected push_response format or insufficient parts: $pushResponse');
+          print(
+              '⚠️ Unexpected push_response format or insufficient parts: $pushResponse');
         }
       } else {
         print('⚠️ push_response is null or empty');
@@ -464,21 +477,23 @@ class BackgroundService {
       print('❌ Error in sound detection: $e');
       // Continue with next recording cycle
     }
-    
+
     await _restartRecording();
   }
 
   Future<void> _restartRecording() async {
     if (!_isListening || _isStopping) {
-      print('⚠️ Cannot restart recording: isListening=$_isListening, isStopping=$_isStopping');
+      print(
+          '⚠️ Cannot restart recording: isListening=$_isListening, isStopping=$_isStopping');
       return;
     }
-    
+
     try {
-      final newFilePath = '${_currentRecordingPath!.split('_').first}_${DateTime.now().millisecondsSinceEpoch}.wav';
+      final newFilePath =
+          '${_currentRecordingPath!.split('_').first}_${DateTime.now().millisecondsSinceEpoch}.wav';
       print('🎤 Restarting audio recorder (using record package)...');
       print('📁 New recording path: $newFilePath');
-      
+
       await _audioRecorder.start(
         const RecordConfig(
           encoder: AudioEncoder.wav,
@@ -510,23 +525,10 @@ class BackgroundService {
   }
 
   Future<void> _handleSoundDetection(Map<String, dynamic> detection) async {
-    try {
-      final user = _auth.currentUser;
-      if (user == null) {
-        print('⚠️ No user logged in, skipping Firestore save');
-        return;
-      }
-
-      await _firestore.collection('sound_detections').add({
-        ...detection,
-        'userId': user.uid,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
-      print('✅ Successfully saved to Firestore');
-    } catch (e) {
-      print('❌ Error saving to Firestore: $e');
-      rethrow;
-    }
+    // Remove all Firestore and _saveToFirestore logic
+    // Remove the _saveToFirestore function and any calls to it
+    // In _handleSoundDetection, remove the call to _saveToFirestore and replace with a stub or backend call if needed
+    // Remove any references to prefs or SharedPreferences
   }
 
   Future<void> dispose() async {
@@ -539,29 +541,8 @@ class BackgroundService {
   }
 
   bool get isListening => _isListening;
-  
+
   String? get lastRecordedFilePath => _lastRecordedFilePath;
-
-  Future<void> _saveToFirestore(Map<String, dynamic> result) async {
-    try {
-      final user = _auth.currentUser;
-      if (user == null) {
-        print('❌ No user logged in, cannot save to Firestore');
-        return;
-      }
-
-      await FirebaseFirestore.instance.collection('sound_detections').add({
-        'userId': user.uid,
-        'label': result['label'],
-        'confidence': result['confidence'],
-        'timestamp': FieldValue.serverTimestamp(),
-      });
-
-      print('✅ Sound detection saved to Firestore');
-    } catch (e) {
-      print('❌ Error saving to Firestore: $e');
-    }
-  }
 
   // Setter for the message callback
   void setMessageCallback(Function(String) callback) {
@@ -571,4 +552,249 @@ class BackgroundService {
   void setProcessingCallback(Function(bool) callback) {
     onProcessingStateChanged = callback;
   }
-} 
+}
+
+class BackendAuthService {
+  static const String _baseUrl = 'http://13.61.5.249:8000';
+  static const String _registerUrl = '$_baseUrl/auth/register/';
+  static const String _loginUrl = '$_baseUrl/auth/login/';
+  static const String _resetPasswordUrl = '$_baseUrl/auth/reset-password/';
+  static const String _userProfileUrl = '$_baseUrl/auth/profile/';
+  
+  String? _accessToken;
+  String? _refreshToken;
+  DateTime? _tokenExpiry;
+  Map<String, dynamic>? _currentUser;
+
+  // Singleton pattern
+  static final BackendAuthService _instance = BackendAuthService._internal();
+  factory BackendAuthService() => _instance;
+  BackendAuthService._internal();
+
+  String? get accessToken => _accessToken;
+  Map<String, dynamic>? get currentUser => _currentUser;
+  bool get isLoggedIn => _accessToken != null && _currentUser != null;
+
+  Future<Map<String, dynamic>?> registerWithEmailAndPassword(
+    String email, 
+    String password, 
+    String fullname
+  ) async {
+    try {
+      final response = await http.post(
+        Uri.parse(_registerUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email,
+          'password': password,
+          'fullname': fullname,
+        }),
+      );
+
+      print('📡 Register response status: ${response.statusCode}');
+      print('📦 Register response body: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        
+        // After successful registration, automatically login
+        final loginResult = await signInWithEmailAndPassword(email, password);
+        if (loginResult != null) {
+          Get.snackbar(
+            'Success',
+            'Account created successfully!',
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.green,
+            colorText: Colors.white,
+          );
+          Get.offAllNamed(AppRoutes.home);
+        }
+        return data;
+      } else {
+        final errorData = jsonDecode(response.body);
+        String message = 'Registration failed';
+        if (errorData['detail'] != null) {
+          message = errorData['detail'];
+        } else if (errorData['email'] != null) {
+          message = 'Email: ${errorData['email'][0]}';
+        }
+        
+        Get.snackbar(
+          'Registration Failed',
+          message,
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        return null;
+      }
+    } catch (e) {
+      print('❌ Error in registration: $e');
+      Get.snackbar(
+        'Registration Failed',
+        'Network error. Please try again.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> signInWithEmailAndPassword(
+    String email, 
+    String password
+  ) async {
+    try {
+      final response = await http.post(
+        Uri.parse(_loginUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email,
+          'password': password,
+        }),
+      );
+
+      print('📡 Login response status: ${response.statusCode}');
+      print('📦 Login response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        
+        _accessToken = data['access_token'];
+        _refreshToken = data['refresh_token'];
+        _tokenExpiry = DateTime.now().add(const Duration(hours: 1));
+        
+        // Get user profile
+        await _fetchUserProfile();
+        
+        Get.snackbar(
+          'Success',
+          'Welcome back!',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+        );
+        
+        Get.offAllNamed(AppRoutes.home);
+        return _currentUser;
+      } else {
+        final errorData = jsonDecode(response.body);
+        String message = 'Login failed';
+        if (errorData['detail'] != null) {
+          message = errorData['detail'];
+        }
+        
+        Get.snackbar(
+          'Login Failed',
+          message,
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        return null;
+      }
+    } catch (e) {
+      print('❌ Error in login: $e');
+      Get.snackbar(
+        'Login Failed',
+        'Network error. Please try again.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return null;
+    }
+  }
+
+  Future<void> _fetchUserProfile() async {
+    if (_accessToken == null) return;
+    
+    try {
+      final response = await http.get(
+        Uri.parse(_userProfileUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_accessToken',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        _currentUser = jsonDecode(response.body) as Map<String, dynamic>;
+        print('✅ User profile fetched: ${_currentUser!['email']}');
+      }
+    } catch (e) {
+      print('❌ Error fetching user profile: $e');
+    }
+  }
+
+  Future<void> sendPasswordResetEmail(String email) async {
+    try {
+      final response = await http.post(
+        Uri.parse(_resetPasswordUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email}),
+      );
+
+      if (response.statusCode == 200) {
+        Get.snackbar(
+          'Success',
+          'Password reset link has been sent to your email',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+        );
+      } else {
+        final errorData = jsonDecode(response.body);
+        Get.snackbar(
+          'Error',
+          errorData['detail'] ?? 'Failed to send reset email',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      }
+    } catch (e) {
+      print('❌ Error sending reset email: $e');
+      Get.snackbar(
+        'Error',
+        'Network error. Please try again.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  Future<void> signOut() async {
+    _accessToken = null;
+    _refreshToken = null;
+    _tokenExpiry = null;
+    _currentUser = null;
+
+    Get.offAllNamed(AppRoutes.login);
+  }
+
+  Future<String?> refreshAccessToken() async {
+    if (_refreshToken == null) return null;
+
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl/auth/token/refresh/'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'refresh': _refreshToken}),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        _accessToken = data['access'];
+        _tokenExpiry = DateTime.now().add(const Duration(hours: 1));
+        return _accessToken;
+      }
+    } catch (e) {
+      print('❌ Error refreshing token: $e');
+    }
+    
+    return null;
+  }
+}

@@ -1,10 +1,12 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:http/http.dart' as http;
 
-import '../../core/services/firebase_service.dart';
 import '../../routes/app_routes.dart';
 import '../../widgets/custom_text_field.dart';
 import 'reset_password_screen.dart';
+import 'package:sound_app/services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -16,7 +18,6 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final _firebaseService = FirebaseService();
 
   String? _emailError;
   String? _passwordError;
@@ -30,41 +31,42 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _validateAndSubmit() async {
-    // Clear previous errors
     setState(() {
       _emailError = null;
       _passwordError = null;
     });
-
-    // Validate email
     if (_emailController.text.isEmpty) {
       setState(() {
         _emailError = 'Email is required';
       });
       return;
     }
-
-    // Validate password
     if (_passwordController.text.isEmpty) {
       setState(() {
         _passwordError = 'Password is required';
       });
       return;
     }
-
-    // If we get here, validation passed
     setState(() {
       _isLoading = true;
     });
-
     try {
-    // Call Firebase login
-      final user = await _firebaseService.signInWithEmailAndPassword(
-      _emailController.text.trim(),
-      _passwordController.text,
-    );
-
-      if (user != null) {
+      print('Sending login request...');
+      final response = await http.post(
+        Uri.parse('http://13.61.5.249:8000/auth/login/'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': _emailController.text.trim(),
+          'password': _passwordController.text,
+        }),
+      );
+      print('Login response status: ${response.statusCode}');
+      print('Login response body: ${response.body}');
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        AuthService.accessToken = data['access_token'];
+        print('Access token set: \\${AuthService.accessToken}');
+        Get.offAllNamed(AppRoutes.home);
         Get.snackbar(
           'Success',
           'Welcome back!',
@@ -73,7 +75,26 @@ class _LoginScreenState extends State<LoginScreen> {
           colorText: Colors.white,
           duration: const Duration(seconds: 2),
         );
+      } else {
+        final error = jsonDecode(response.body);
+        print('Login error: ${error['detail'] ?? response.body}');
+        Get.snackbar(
+          'Login Failed',
+          error['detail'] ?? 'Invalid credentials',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
       }
+    } catch (e) {
+      print('Login exception: ${e.toString()}');
+      Get.snackbar(
+        'Error',
+        'An error occurred. Please try again.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     } finally {
       if (mounted) {
         setState(() {

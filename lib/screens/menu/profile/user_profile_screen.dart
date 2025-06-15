@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:sound_app/screens/home/home_screen.dart';
 import 'package:sound_app/widgets/app_bottom_nav_bar.dart';
-import 'package:sound_app/core/services/firebase_service.dart';
 import 'package:sound_app/core/services/user_profile_service.dart';
 import 'package:sound_app/routes/app_routes.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:sound_app/services/auth_service.dart';
 
 class UserProfileScreen extends StatefulWidget {
   final bool fromBottomNav;
@@ -21,9 +23,14 @@ class UserProfileScreen extends StatefulWidget {
 class _UserProfileScreenState extends State<UserProfileScreen> {
   bool _isLoading = false;
   final _userProfileService = UserProfileService();
-  final _firebaseService = FirebaseService();
   final _nameController = TextEditingController();
   int? _currentAvatarNumber;
+  // Change Password controllers
+  final _oldPasswordController = TextEditingController();
+  final _newPasswordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  bool _isChangingPassword = false;
+  String? _userEmail;
 
   @override
   void initState() {
@@ -34,17 +41,35 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _oldPasswordController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
   Future<void> _loadUserProfile() async {
     setState(() => _isLoading = true);
     try {
-      final profile = await _userProfileService.getUserProfile();
-      if (profile != null) {
-        _nameController.text = profile['name'] ?? '';
+      print('Fetching user profile...');
+      print('Using access token: \\${AuthService.accessToken}');
+      final response = await http.get(
+        Uri.parse('http://13.61.5.249:8000/auth/user/profile/'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (AuthService.accessToken != null)
+            'Authorization': 'Bearer ${AuthService.accessToken}',
+        },
+      );
+      print('Profile response status: \\${response.statusCode}');
+      print('Profile response body: \\${response.body}');
+      if (response.statusCode == 200) {
+        final profile = jsonDecode(response.body);
+        _nameController.text = profile['fullname'] ?? '';
+        _userEmail = profile['email'] ?? '';
         _currentAvatarNumber = profile['avatarNumber'];
       }
+    } catch (e) {
+      print('Error fetching profile: \\${e.toString()}');
     } finally {
       setState(() => _isLoading = false);
     }
@@ -97,7 +122,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   Future<void> _handleLogout() async {
     setState(() => _isLoading = true);
     try {
-      await _firebaseService.signOut();
       Get.offAllNamed(AppRoutes.login);
     } catch (e) {
       if (mounted) {
@@ -112,6 +136,83 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  Future<void> _changePassword() async {
+    if (_oldPasswordController.text.isEmpty ||
+        _newPasswordController.text.isEmpty ||
+        _confirmPasswordController.text.isEmpty) {
+      Get.snackbar(
+        'Error',
+        'All password fields are required',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+    if (_newPasswordController.text != _confirmPasswordController.text) {
+      Get.snackbar(
+        'Error',
+        'New passwords do not match',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return;
+    }
+    setState(() => _isChangingPassword = true);
+    try {
+      print('Sending password change request...');
+      print('Using access token: \\${AuthService.accessToken}');
+      final response = await http.post(
+        Uri.parse('http://13.61.5.249:8000/auth/user/change-password/'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (AuthService.accessToken != null)
+            'Authorization': 'Bearer ${AuthService.accessToken}',
+        },
+        body: jsonEncode({
+          'old_password': _oldPasswordController.text,
+          'new_password': _newPasswordController.text,
+          'confirm_password': _confirmPasswordController.text,
+        }),
+      );
+      print('Password change response status: \\${response.statusCode}');
+      print('Password change response body: \\${response.body}');
+      if (response.statusCode == 200) {
+        Get.snackbar(
+          'Success',
+          'Password changed successfully',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+        );
+        _oldPasswordController.clear();
+        _newPasswordController.clear();
+        _confirmPasswordController.clear();
+      } else {
+        final error = jsonDecode(response.body);
+        Get.snackbar(
+          'Change Failed',
+          error['detail'] ?? 'Could not change password',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      }
+    } catch (e) {
+      print('Password change exception: \\${e.toString()}');
+      Get.snackbar(
+        'Error',
+        'An error occurred. Please try again.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    } finally {
+      setState(() => _isChangingPassword = false);
     }
   }
 
@@ -214,10 +315,81 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     // Email field (read-only)
                     ProfileTextField(
                       label: 'Email',
-                      value: _firebaseService.getCurrentUser()?.email ?? '',
+                      value: _userEmail ?? '',
                       readOnly: true,
                     ),
                     const SizedBox(height: 24),
+
+                    // Change Password Section
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Change Password',
+                        style: TextStyle(
+                          color: Color(0xFF0D2B55),
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _oldPasswordController,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Old Password',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _newPasswordController,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: 'New Password',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _confirmPasswordController,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Confirm New Password',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _isChangingPassword ? null : _changePassword,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0D2B55),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: _isChangingPassword
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              )
+                            : const Text(
+                                'Change Password',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                      ),
+                    ),
                   ],
                 ),
               ),

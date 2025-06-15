@@ -1,7 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:http/http.dart' as http;
 
-import '../../core/services/firebase_service.dart';
 import '../../core/utils/validators.dart';
 import '../../routes/app_routes.dart';
 import '../../widgets/custom_text_field.dart';
@@ -19,8 +20,6 @@ class _SignupScreenState extends State<SignupScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-
-  final _firebaseService = FirebaseService();
 
   String? _nameError;
   String? _emailError;
@@ -52,14 +51,19 @@ class _SignupScreenState extends State<SignupScreen> {
       });
 
       try {
-      // Call Firebase registration
-        final user = await _firebaseService.registerWithEmailAndPassword(
-        _emailController.text.trim(),
-        _passwordController.text,
-        _nameController.text.trim(),
-      );
-
-        if (user != null) {
+        print('Sending registration request...');
+        final response = await http.post(
+          Uri.parse('http://13.61.5.249:8000/auth/register/'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'fullname': _nameController.text.trim(),
+            'email': _emailController.text.trim(),
+            'password': _passwordController.text,
+          }),
+        );
+        print('Registration response status: ${response.statusCode}');
+        print('Registration response body: ${response.body}');
+        if (response.statusCode == 201 || response.statusCode == 200) {
           Get.snackbar(
             'Success',
             'Account created successfully!',
@@ -68,9 +72,27 @@ class _SignupScreenState extends State<SignupScreen> {
             colorText: Colors.white,
             duration: const Duration(seconds: 2),
           );
-          // Navigate to login screen after successful registration
-      Get.offAllNamed(AppRoutes.login);
+          Get.offAllNamed(AppRoutes.login);
+        } else {
+          final error = jsonDecode(response.body);
+          print('Registration error: ${error['detail'] ?? response.body}');
+          Get.snackbar(
+            'Registration Failed',
+            error['detail'] ?? 'Could not register',
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.red,
+            colorText: Colors.white,
+          );
         }
+      } catch (e) {
+        print('Registration exception: ${e.toString()}');
+        Get.snackbar(
+          'Error',
+          'An error occurred. Please try again.',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
       } finally {
         if (mounted) {
           setState(() {

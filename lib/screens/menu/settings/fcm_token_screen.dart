@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:sound_app/screens/home/home_screen.dart';
 import 'package:sound_app/widgets/app_bottom_nav_bar.dart';
 
@@ -23,29 +22,28 @@ class _FCMTokenScreenState extends State<FCMTokenScreen> {
   @override
   void initState() {
     super.initState();
-    _loadFCMToken();
+    // _loadFCMToken();
   }
 
   Future<void> _loadFCMToken() async {
-    try {
-      final token = await FirebaseMessaging.instance.getToken();
-      setState(() {
-        _fcmToken = token;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to load FCM token'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
+    // try {
+    //   final token = await FirebaseMessaging.instance.getToken();
+    //   setState(() {
+    //     _fcmToken = token;
+    //     _isLoading = false;
+    //   });
+    // } catch (e) {
+    //   setState(() {
+    //     _isLoading = false;
+    //   });
+    //   if (mounted) {
+    //     ScaffoldMessenger.of(context).showSnackBar(
+    //       const SnackBar(
+    //         content: Text('Failed to load FCM token'),
+    //         backgroundColor: Colors.red,
+    //       ),
+    //     );
+    //   }
   }
 
   Future<void> _copyToken() async {

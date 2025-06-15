@@ -1,6 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:sound_app/core/services/firebase_service.dart';
+import 'package:http/http.dart' as http;
 import 'package:sound_app/core/utils/validators.dart';
 import 'package:sound_app/widgets/custom_text_field.dart';
 
@@ -14,7 +15,6 @@ class ResetPasswordScreen extends StatefulWidget {
 class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
-  final _firebaseService = FirebaseService();
   bool _isLoading = false;
   bool _emailSent = false;
 
@@ -30,12 +30,43 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       _isLoading = true;
     });
     try {
-      await _firebaseService.sendPasswordResetCode(_emailController.text.trim());
-      setState(() {
-        _emailSent = true;
-      });
+      print('Sending password reset request...');
+      final response = await http.post(
+        Uri.parse('http://13.61.5.249:8000/auth/user/change-password/'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': _emailController.text.trim(),
+        }),
+      );
+      print('Password reset response status: ${response.statusCode}');
+      print('Password reset response body: ${response.body}');
+      if (response.statusCode == 200) {
+        setState(() {
+          _emailSent = true;
+        });
+      } else {
+        final error = jsonDecode(response.body);
+        print('Password reset error: ${error['detail'] ?? response.body}');
+        Get.snackbar(
+          'Reset Failed',
+          error['detail'] ?? 'Could not send reset link',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        setState(() {
+          _emailSent = false;
+        });
+      }
     } catch (e) {
-      // Error is already handled by FirebaseService with a snackbar
+      print('Password reset exception: ${e.toString()}');
+      Get.snackbar(
+        'Error',
+        'An error occurred. Please try again.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
       setState(() {
         _emailSent = false;
       });

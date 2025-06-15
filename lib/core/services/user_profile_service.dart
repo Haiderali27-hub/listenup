@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 import 'package:flutter/material.dart';
 import 'package:sound_app/core/constants/images.dart';
@@ -14,11 +12,8 @@ const List<String> avatarImages = [
 ];
 
 class UserProfileService {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
   // Get current user ID
-  String? get currentUserId => _auth.currentUser?.uid;
+  String? get currentUserId => null;
 
   // Get user profile data
   Future<Map<String, dynamic>?> getUserProfile() async {
@@ -26,8 +21,8 @@ class UserProfileService {
       final userId = currentUserId;
       if (userId == null) return null;
 
-      final doc = await _firestore.collection('users').doc(userId).get();
-      return doc.data();
+      // This method is no longer used with backend authentication
+      return null;
     } catch (e) {
       Get.snackbar(
         'Error',
@@ -49,32 +44,8 @@ class UserProfileService {
       final userId = currentUserId;
       if (userId == null) return false;
 
-      final Map<String, dynamic> updateData = {
-        'name': name,
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-
-      // Only update avatar if provided
-      if (avatarNumber != null) {
-        if (avatarNumber < 1 || avatarNumber > 6) {
-          Get.snackbar(
-            'Error',
-            'Invalid avatar number. Must be between 1 and 6',
-            snackPosition: SnackPosition.BOTTOM,
-            backgroundColor: Colors.red,
-            colorText: Colors.white,
-          );
-          return false;
-        }
-        updateData['avatarNumber'] = avatarNumber;
-      }
-
-      await _firestore.collection('users').doc(userId).set(
-        updateData,
-        SetOptions(merge: true),
-      );
-
-      return true;
+      // This method is no longer used with backend authentication
+      return false;
     } catch (e) {
       Get.snackbar(
         'Error',
