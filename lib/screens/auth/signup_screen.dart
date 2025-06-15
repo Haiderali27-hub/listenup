@@ -67,11 +67,8 @@ class _SignupScreenState extends State<SignupScreen> {
         print('Registration response body: ${response.body}');
         if (response.statusCode == 201 || response.statusCode == 200) {
           final data = jsonDecode(response.body);
-          if (data['access_token'] != null) {
-            AuthService.accessToken = data['access_token'];
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.setString('access_token', AuthService.accessToken!);
-            await prefs.setBool('onboarding_complete', true);
+          if (data['access_token'] != null && data['refresh_token'] != null) {
+            await AuthService.saveTokens(data['access_token'], data['refresh_token']);
             Get.offAllNamed(AppRoutes.home);
           } else {
             Get.snackbar(

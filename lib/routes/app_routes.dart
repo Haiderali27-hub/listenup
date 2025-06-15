@@ -6,6 +6,7 @@ import 'package:sound_app/screens/auth/signup_screen.dart';
 import 'package:sound_app/screens/auth/reset_password_screen.dart';
 import 'package:sound_app/screens/home/home_screen.dart';
 import 'package:sound_app/screens/menu/profile/user_profile_screen.dart';
+import 'package:sound_app/screens/menu/settings/fcm_token_screen.dart';
 // Add other imports as needed
 
 class AppRoutes {
@@ -16,6 +17,7 @@ class AppRoutes {
   static const String home = '/home';
   static const String profile = '/profile';
   static const String resetPassword = '/reset-password';
+  static const String userSettings = '/user-settings';
   // Add others as needed
 
   static final routes = [
@@ -26,6 +28,7 @@ class AppRoutes {
     GetPage(name: resetPassword, page: () => const ResetPasswordScreen()),
     GetPage(name: home, page: () => const HomeScreen()),
     GetPage(name: profile, page: () => const UserProfileScreen()),
+    GetPage(name: userSettings, page: () => const UserSettingsScreen()),
     // Add other GetPage routes here as needed
   ];
 }

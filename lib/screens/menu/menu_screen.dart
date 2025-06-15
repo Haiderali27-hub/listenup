@@ -3,6 +3,7 @@ import 'package:sound_app/screens/menu/profile/user_profile_screen.dart';
 import 'package:sound_app/screens/menu/record/record_screen.dart';
 import 'package:sound_app/screens/menu/settings/settings_screen.dart';
 import 'package:sound_app/widgets/app_bottom_nav_bar.dart';
+import 'package:get/get.dart';
 
 class MenuScreen extends StatelessWidget {
   const MenuScreen({super.key});
@@ -51,6 +52,27 @@ class MenuScreen extends StatelessWidget {
                           const SettingsScreen(fromBottomNav: false),
                     ),
                   );
+                },
+              ),
+              const Divider(),
+              // User Settings option
+              ListTile(
+                leading: const Icon(
+                  Icons.tune,
+                  color: Color(0xFF0D2B55),
+                  size: 28,
+                ),
+                title: const Text(
+                  'User Settings',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  // Use GetX navigation for consistency
+                  Get.toNamed('/user-settings');
                 },
               ),
               const Divider(),

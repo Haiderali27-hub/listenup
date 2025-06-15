@@ -31,7 +31,7 @@ class _SplashScreenState extends State<SplashScreen> {
     final onboardingComplete = prefs.getBool('onboarding_complete') ?? false;
     final token = prefs.getString('access_token');
     print('SplashScreen: onboardingComplete=$onboardingComplete, token=$token');
-    await Future.delayed(const Duration(seconds: 2));
+      await Future.delayed(const Duration(seconds: 2));
     if (!onboardingComplete) {
       print('SplashScreen: Navigating to onboarding');
       Get.offAllNamed(AppRoutes.onboarding);

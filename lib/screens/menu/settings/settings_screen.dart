@@ -6,6 +6,11 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:sound_app/services/mic_state.dart';
 import 'package:sound_app/screens/menu/record/record_screen.dart';
 import 'package:sound_app/screens/menu/settings/fcm_token_screen.dart';
+import 'package:get/get.dart';
+import 'package:sound_app/routes/app_routes.dart';
+import 'package:sound_app/services/auth_service.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class SettingsScreen extends StatefulWidget {
   final bool fromBottomNav;
@@ -20,35 +25,88 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool notificationsEnabled = true;
-  bool isEnabled = true;
+  bool notificationsEnabled = false;
+  bool appEnabled = false;
+  bool microphoneAllowed = false;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    micListening.addListener(_micListener);
-    _syncMicrophonePermission();
+    _fetchUserSettings();
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _syncMicrophonePermission();
+  Future<void> _fetchUserSettings() async {
+    setState(() => _isLoading = true);
+    try {
+      print('Fetching user settings...');
+      print('Using access token: \\${AuthService.accessToken}');
+      final response = await AuthService.authenticatedRequest((token) => http.get(
+        Uri.parse('http://13.61.5.249:8000/auth/user/settings/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      ));
+      print('User settings response status: \\${response.statusCode}');
+      print('User settings response body: \\${response.body}');
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          notificationsEnabled = data['notifications_enabled'] ?? false;
+          appEnabled = data['app_enabled'] ?? false;
+          microphoneAllowed = data['microphone_allowed'] ?? false;
+        });
+      } else {
+        Get.snackbar('Error', 'Failed to fetch user settings', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
+      }
+    } catch (e) {
+      print('User settings fetch exception: \\${e.toString()}');
+      Get.snackbar('Error', 'An error occurred. Please try again.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
-  void _micListener() {
-    setState(() {}); // Rebuild when micListening changes
-  }
-
-  Future<void> _syncMicrophonePermission() async {
-    var status = await Permission.microphone.status;
-    setState(() {}); // Only update the UI, don't change micListening.value
-  }
-
-  @override
-  void dispose() {
-    micListening.removeListener(_micListener);
-    super.dispose();
+  Future<void> _updateUserSetting(String key, bool value) async {
+    try {
+      // Update the local state for the outgoing request
+      final updatedSettings = {
+        'notifications_enabled': key == 'notifications_enabled' ? value : notificationsEnabled,
+        'app_enabled': key == 'app_enabled' ? value : appEnabled,
+        'microphone_allowed': key == 'microphone_allowed' ? value : microphoneAllowed,
+      };
+      print('Sending PUT to update settings: ' + updatedSettings.toString());
+      final response = await AuthService.authenticatedRequest((token) => http.put(
+        Uri.parse('http://13.61.5.249:8000/auth/user/settings/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(updatedSettings),
+      ));
+      print('Settings update response status: ${response.statusCode}');
+      print('Settings update response body: ${response.body}');
+      if (response.statusCode == 200) {
+        print('✅ Successfully updated settings');
+        await _fetchUserSettings();
+      } else {
+        print('❌ Failed to update settings: ${response.statusCode}');
+        print('Response body: ${response.body}');
+        Get.snackbar(
+          'Error',
+          'Failed to update settings. Please try again.',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      }
+    } catch (e) {
+      print('❌ Error updating settings: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to update settings. Please try again.',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    }
   }
 
   @override
@@ -80,7 +138,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
       ),
-      body: Padding(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20.0),
         child: Column(
           children: [
@@ -92,6 +152,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               value: notificationsEnabled,
               onChanged: (value) {
                 setState(() => notificationsEnabled = value);
+                      _updateUserSetting('notifications_enabled', value);
               },
             ),
             const Divider(height: 1),
@@ -100,9 +161,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             SettingsToggleItem(
               icon: Icons.person_outline,
               title: 'Enable / Disable',
-              value: isEnabled,
+                    value: appEnabled,
               onChanged: (value) {
-                setState(() => isEnabled = value);
+                      setState(() => appEnabled = value);
+                      _updateUserSetting('app_enabled', value);
               },
             ),
             const Divider(height: 1),
@@ -111,42 +173,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             SettingsToggleItem(
               icon: Icons.mic_outlined,
               title: 'Allow your microphone',
-              value: micListening.value,
-              onChanged: (value) async {
-                if (value) {
-                  var status = await Permission.microphone.status;
-                  if (!status.isGranted) {
-                    status = await Permission.microphone.request();
-                  }
-                  if (status.isGranted) {
-                    await BackgroundService().startListening();
-                    micListening.value = true;
-                  } else if (status.isPermanentlyDenied) {
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: Text('Microphone Permission'),
-                        content: Text('Microphone permission is permanently denied. Please enable it in app settings.'),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: Text('Cancel'),
-                          ),
-                          TextButton(
-                            onPressed: () {
-                              openAppSettings();
-                              Navigator.pop(context);
-                            },
-                            child: Text('Open Settings'),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-                } else {
-                  await BackgroundService().stopListening();
-                  micListening.value = false;
-                }
+                    value: microphoneAllowed,
+                    onChanged: (value) {
+                      setState(() => microphoneAllowed = value);
+                      _updateUserSetting('microphone_allowed', value);
               },
             ),
             const Divider(height: 1),
@@ -168,20 +198,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               trailing: const Icon(Icons.chevron_right),
               onTap: () {
-                // TODO: Navigate to change password screen
-              },
-            ),
-            const Divider(height: 1),
-
-            // Record Folder option
-            ListTile(
-              leading: const Icon(Icons.folder),
-              title: const Text('Record Folder'),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const RecordScreen()),
-                );
+                      Get.toNamed(AppRoutes.userSettings);
               },
             ),
             const Divider(height: 1),
