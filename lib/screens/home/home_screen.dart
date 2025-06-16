@@ -22,6 +22,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final NotificationService _notificationService = NotificationService();
   String? detectedLabel;
+  bool _isProcessing = false;
 
   @override
   void initState() {
@@ -44,6 +45,13 @@ class _HomeScreenState extends State<HomeScreen> {
       print('✅ NotificationService initialized.');
 
       await BackgroundService().initialize();
+      BackgroundService().setProcessingCallback((isProcessing) {
+        if (mounted) {
+          setState(() { _isProcessing = isProcessing; });
+        }
+      });
+
+
       print('✅ BackgroundService initialized.');
     } catch (e) {
       if (mounted) {
@@ -55,6 +63,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void toggleListening() async {
+    if (_isProcessing) return;
+    if (_isProcessing) {
+      print('UI: toggleListening ignored - processing in progress');
+      return;
+    }
     print('UI: toggleListening called. Current micListening.value: ${micListening.value}');
     try {
       if (micListening.value) {
@@ -96,6 +109,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void stopListening() async {
+    if (_isProcessing) return;
+    if (_isProcessing) {
+      print('UI: stopListening ignored - processing in progress');
+      return;
+    }
     print('UI: Explicit stopListening() called (from close button).');
     try {
       await BackgroundService().stopListening();
@@ -240,11 +258,13 @@ class _HomeScreenState extends State<HomeScreen> {
                                   children: [
                                     AnimatedMicButton(
                                       isListening: micListening.value,
-                                      onTap: toggleListening,
+                                      onTap: () {
+                                    if (!_isProcessing) toggleListening();
+                                  },
                                     ),
                                     const SizedBox(width: 120),
                                     GestureDetector(
-                                      onTap: stopListening,
+                                      onTap: () { if (!_isProcessing) stopListening(); },
                                       child: Container(
                                         width: 40,
                                         height: 40,
@@ -260,7 +280,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                 )
                               : AnimatedMicButton(
                                   isListening: micListening.value,
-                                  onTap: toggleListening,
+                                  onTap: () {
+                                    if (!_isProcessing) toggleListening();
+                                  },
                                 ),
                         ),
                         const SizedBox(height: 40),

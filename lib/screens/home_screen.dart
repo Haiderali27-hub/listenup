@@ -123,7 +123,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 _isListening ? Icons.mic : Icons.mic_off,
                 color: _isListening ? Colors.red : Colors.grey,
               ),
-              onPressed: _isProcessing ? null : _toggleListening,
+              onPressed: (_isProcessing || _isLoading) ? null : _toggleListening,
             ),
             const SizedBox(height: 16),
             if (_isLoading)

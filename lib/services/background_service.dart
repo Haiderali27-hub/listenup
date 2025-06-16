@@ -11,6 +11,7 @@ import 'package:synchronized/synchronized.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:sound_app/services/mic_state.dart';
 import '../../routes/app_routes.dart';
 
 class BackgroundService {
@@ -107,6 +108,7 @@ class BackgroundService {
   }
 
   Future<void> startListening() async {
+    _isStopping = false;
     print('🎤 startListening() called. _isListening: $_isListening, _isInitialized: $_isInitialized, _audioRecorder is null: ${_audioRecorder == null}');
 
     if (!_isInitialized || _audioRecorder == null) {
@@ -138,6 +140,7 @@ class BackgroundService {
       if (_lastRecordedFilePath != null) {
         // Set _isListening to true here as the overall intent is to listen continuously
         _isListening = true;
+        micListening.value = true;
 
         await _audioRecorder!.start(
         const RecordConfig(
@@ -163,6 +166,7 @@ class BackgroundService {
           }
         });
         print('✅ Recording timer started for $_recordingDuration');
+        micListening.value = true;
 
       } else {
         throw Exception('Failed to create recording path');
@@ -177,6 +181,11 @@ class BackgroundService {
 
   Future<void> _processRecording() async {
     print('🔄 _processRecording() called. _isListening: $_isListening');
+    if (_isStopping) {
+      print('🛑 Aborting processing due to manual stop.');
+      _isStopping = false;
+      return;
+    }
 
     if (_lastRecordedFilePath == null) {
       print('❌ No recording file path available');
@@ -319,6 +328,7 @@ class BackgroundService {
 
   // Public method to stop all listening (user initiated)
   Future<void> stopListening() async {
+    _isStopping = true;
     print('🛑 stopListening() called (public). _isListening: $_isListening');
     if (!_isListening) {
       print('ℹ️ Already not listening. Exiting public stopListening().');
@@ -330,6 +340,7 @@ class BackgroundService {
       _recordingTimer?.cancel();
       _recordingTimer = null;
       _isListening = false; // THIS IS THE ONLY PLACE _isListening BECOMES FALSE FOR USER STOP
+        micListening.value = false;
 
       if (_isInitialized && _audioRecorder != null) {
         print('Stopping audio recorder for full stop.');
