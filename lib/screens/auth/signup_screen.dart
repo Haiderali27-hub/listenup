@@ -68,7 +68,11 @@ class _SignupScreenState extends State<SignupScreen> {
         if (response.statusCode == 201 || response.statusCode == 200) {
           final data = jsonDecode(response.body);
           if (data['access_token'] != null && data['refresh_token'] != null) {
-            await AuthService.saveTokens(data['access_token'], data['refresh_token']);
+            await AuthService.saveTokens(
+              data['access_token'], 
+              data['refresh_token'],
+              _emailController.text.trim()
+            );
             Get.offAllNamed(AppRoutes.home);
           } else {
             Get.snackbar(

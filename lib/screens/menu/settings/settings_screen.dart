@@ -40,7 +40,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _isLoading = true);
     try {
       print('Fetching user settings...');
-      print('Using access token: \\${AuthService.accessToken}');
       final response = await AuthService.authenticatedRequest((token) => http.get(
         Uri.parse('http://13.61.5.249:8000/auth/user/settings/'),
         headers: {
@@ -48,8 +47,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           'Authorization': 'Bearer $token',
         },
       ));
-      print('User settings response status: \\${response.statusCode}');
-      print('User settings response body: \\${response.body}');
+      print('User settings response status: ${response.statusCode}');
+      print('User settings response body: ${response.body}');
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         setState(() {
@@ -61,7 +60,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         Get.snackbar('Error', 'Failed to fetch user settings', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
       }
     } catch (e) {
-      print('User settings fetch exception: \\${e.toString()}');
+      print('User settings fetch exception: ${e.toString()}');
       Get.snackbar('Error', 'An error occurred. Please try again.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
     } finally {
       setState(() => _isLoading = false);

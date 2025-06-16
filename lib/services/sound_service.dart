@@ -2,6 +2,10 @@ import 'dart:convert';
 import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:sound_app/services/auth_service.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'dart:io';
+import '../utils/constants.dart';
 
 class SoundService {
   static const String _apiUrl = 'http://13.61.5.249:8000/auth/voice-detect/';
@@ -11,6 +15,7 @@ class SoundService {
   String? _backendToken;
   DateTime? _tokenExpiry;
   int _tokenRefreshCount = 0;  // Track number of token refreshes
+  final AuthService _authService = AuthService();
 
   Future<bool> _checkConnectivity() async {
     try {
@@ -151,12 +156,11 @@ class SoundService {
   }
 
   /// Sends the recorded audio file at [path] to your backend.
-  /// Automatically includes the user's Access Token and FCM token in the Authorization header and body.
-  /// Expects a JSON response like { "label": "baby_crying", "confidence": 0.92 }.
-  Future<Map<String, dynamic>> detectSound(String path, {int retries = 3}) async {
+  /// Includes the user's Access Token (Bearer) and FCM token in the request.
+  Future<Map<String, dynamic>> detectSound(String audioPath) async {
     print('\n--- Sound Detection API Call Started ---');
-    print('API URL: $_apiUrl');
-    print('Audio file path: $path');
+    print('API URL: ${AppConstants.baseUrl}${AppConstants.soundDetectionEndpoint}');
+    print('Audio file path: $audioPath');
 
     // Check connectivity first
     if (!await _checkConnectivity()) {
@@ -164,103 +168,78 @@ class SoundService {
       throw Exception('No internet connection available');
     }
 
-    // Get backend token
-    print('Getting backend token...');
-    final backendToken = await _getBackendToken();
-    print('✅ Got backend token: ${backendToken.substring(0, 10)}...');
-
-    for (int attempt = 1; attempt <= retries; attempt++) {
-      try {
-        print('\n🔄 Attempt $attempt of $retries');
-        
-        final uri = Uri.parse(_apiUrl);
-        print('📤 Creating multipart request...');
-        final request = http.MultipartRequest('POST', uri)
-          ..files.add(await http.MultipartFile.fromPath('audio', path))
-          ..fields['token'] = 'fcmToken'
-          ..headers['Content-Type'] = 'multipart/form-data'
-          ..headers['Authorization'] = 'Bearer $backendToken';
-
-        print('📤 Request created with:');
-        print('- File: audio');
-        print('- FCM token field: token');
-        print('- Content-Type: multipart/form-data');
-        print('- Authorization header: Bearer token present');
-
-        print('📤 Sending request to server...');
-        final streamed = await request.send().timeout(
-          const Duration(seconds: 30),
-          onTimeout: () {
-            print('❌ Request timed out after 30 seconds');
-            throw TimeoutException('Request timed out');
-          },
-        );
-        
-        print('⏳ Request sent, waiting for response...');
-        final response = await http.Response.fromStream(streamed).timeout(
-          const Duration(seconds: 30),
-          onTimeout: () {
-            print('❌ Response timed out after 30 seconds');
-            throw TimeoutException('Response timed out');
-          },
-        );
-        
-        print('📥 Response received:');
-        print('- Status code: ${response.statusCode}');
-        print('- Response headers: ${response.headers}');
-        print('- Response body: ${response.body}');
-
-        if (response.statusCode == 200) {
-          try {
-            final data = jsonDecode(response.body) as Map<String, dynamic>;
-            print('✅ Successfully parsed response: $data');
-            print('--- Sound Detection API Call Completed Successfully ---\n');
-            return data;
-          } catch (e) {
-            print('❌ Error parsing response JSON: $e');
-            print('📦 Raw response body: ${response.body}');
-            throw Exception('Invalid JSON response from server: ${response.body}');
-          }
-        } else if (response.statusCode == 401) {
-          print('🔑 Authentication failed, refreshing token...');
-          // Clear the token to force a new login
-          _backendToken = null;
-          _tokenExpiry = null;
-          if (attempt == retries) {
-            print('❌ Authentication failed after $retries attempts');
-            throw Exception('Authentication failed after $retries attempts. Status: ${response.statusCode}, Body: ${response.body}');
-          }
-          print('🔄 Retrying with new token...');
-          continue;
-        } else {
-          print('❌ Server error: ${response.body}');
-          if (attempt == retries) {
-            print('❌ Failed after $retries attempts');
-            throw Exception('Sound API error: ${response.statusCode} - ${response.body}');
-          }
-          print('⏳ Waiting before retry...');
-          await Future.delayed(Duration(seconds: attempt * 2));
-          continue;
-        }
-      } on TimeoutException {
-        print('❌ Request timed out on attempt $attempt');
-        if (attempt == retries) {
-          print('❌ Sound Detection API Call Failed with Timeout ---\n');
-          rethrow;
-        }
-        print('⏳ Waiting before retry...');
-        await Future.delayed(Duration(seconds: attempt * 2));
-      } catch (e) {
-        print('❌ Error in detectSound (attempt $attempt): $e');
-        if (attempt == retries) {
-          print('❌ Sound Detection API Call Failed with Error ---\n');
-          rethrow;
-        }
-        print('⏳ Waiting before retry...');
-        await Future.delayed(Duration(seconds: attempt * 2));
-      }
+    // Get FCM token
+    String? fcmToken = await FirebaseMessaging.instance.getToken();
+    print('FCM Token being sent to backend: $fcmToken');
+    print('FCM Token Format Analysis:');
+    if (fcmToken != null) {
+      final parts = fcmToken.split(':');
+      print('  - Length: ${fcmToken.length} characters');
+      print('  - Prefix: ${parts[0]}');
+      print('  - Suffix: ${parts[1]}');
+      print('  - Valid Format: ${parts[0].startsWith('eG7DuctCTI') ? 'Yes' : 'No'}');
     }
-    
-    throw Exception('Failed after $retries attempts');
+
+    // Get access token
+    String? accessToken = await _authService.getAccessToken();
+    print('Access token: ${accessToken?.substring(0, 10)}...');
+
+    // Verify audio file exists
+    File audioFile = File(audioPath);
+    bool fileExists = await audioFile.exists();
+    print('Audio file exists: $fileExists');
+    if (fileExists) {
+      print('Audio file size: ${await audioFile.length()} bytes');
+    }
+
+    try {
+      // Create multipart request
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse('${AppConstants.baseUrl}${AppConstants.soundDetectionEndpoint}'),
+      );
+
+      // Add audio file
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'audio',
+          audioPath,
+        ),
+      );
+
+      // Add FCM token
+      if (fcmToken != null) {
+        request.fields['token'] = fcmToken;
+        print('Added FCM token to request fields: ${fcmToken.substring(0, 10)}...');
+      }
+
+      // Add authorization header
+      if (accessToken != null) {
+        request.headers['Authorization'] = 'Bearer $accessToken';
+        print('Added Authorization header with token: ${accessToken.substring(0, 10)}...');
+      }
+
+      print('\nMaking authenticated request...');
+      var streamedResponse = await _authService.authenticatedRequestMultipart(request);
+      var response = await http.Response.fromStream(streamedResponse);
+
+      print('\nResponse received:');
+      print('- Status code: ${response.statusCode}');
+      print('- Response body: ${response.body}');
+      print('--- Sound Detection API Call Finished ---\n');
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        print('Successfully parsed response: $responseData');
+        print('--- Sound Detection API Call Completed Successfully ---\n');
+        return responseData;
+      } else {
+        print('Error response from server: ${response.body}');
+        throw Exception('Failed to detect sound: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error in detectSound: $e');
+      rethrow;
+    }
   }
 } 

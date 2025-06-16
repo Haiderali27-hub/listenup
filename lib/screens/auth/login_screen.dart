@@ -65,8 +65,12 @@ class _LoginScreenState extends State<LoginScreen> {
       print('Login response body: ${response.body}');
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        await AuthService.saveTokens(data['access_token'], data['refresh_token']);
-        print('Access token set: \\${AuthService.accessToken}');
+        await AuthService.saveTokens(
+          data['access_token'], 
+          data['refresh_token'],
+          _emailController.text.trim()
+        );
+        print('Access token set: ${AuthService.accessToken}');
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('access_token', AuthService.accessToken!);
         await prefs.setBool('onboarding_complete', true);

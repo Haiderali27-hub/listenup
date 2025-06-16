@@ -46,7 +46,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     setState(() => _isLoading = true);
     try {
       print('Fetching user info...');
-      print('Using access token: \\${AuthService.accessToken}');
       final response = await AuthService.authenticatedRequest((token) => http.get(
         Uri.parse('http://13.61.5.249:8000/auth/me/'),
         headers: {
@@ -54,8 +53,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           'Authorization': 'Bearer $token',
         },
       ));
-      print('User info response status: \\${response.statusCode}');
-      print('User info response body: \\${response.body}');
+      print('User info response status: ${response.statusCode}');
+      print('User info response body: ${response.body}');
       if (response.statusCode == 200) {
         final profile = jsonDecode(response.body);
         _nameController.text = profile['fullname'] ?? '';
@@ -63,7 +62,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         _profileImageUrl = profile['profile_image'];
       }
     } catch (e) {
-      print('Error fetching user info: \\${e.toString()}');
+      print('Error fetching user info: ${e.toString()}');
+      Get.snackbar(
+        'Error',
+        'Failed to load profile. Please try again.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     } finally {
       setState(() => _isLoading = false);
     }
@@ -83,11 +89,22 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
     setState(() => _isLoading = true);
     try {
-      final success = await _userProfileService.updateUserProfile(
-        name: _nameController.text,
-        avatarNumber: _currentAvatarNumber,
-      );
-      if (success) {
+      final response = await AuthService.authenticatedRequest((token) => http.put(
+        Uri.parse('http://13.61.5.249:8000/auth/user/profile/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'fullname': _nameController.text,
+          'avatar_number': _currentAvatarNumber,
+        }),
+      ));
+
+      print('Profile update response status: ${response.statusCode}');
+      print('Profile update response body: ${response.body}');
+
+      if (response.statusCode == 200) {
         Get.snackbar(
           'Success',
           'Profile updated successfully',
@@ -95,7 +112,25 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           backgroundColor: Colors.green,
           colorText: Colors.white,
         );
+        await _loadUserProfile(); // Reload profile to get updated data
+      } else {
+        Get.snackbar(
+          'Error',
+          'Failed to update profile',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
       }
+    } catch (e) {
+      print('Error updating profile: ${e.toString()}');
+      Get.snackbar(
+        'Error',
+        'Failed to update profile. Please try again.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     } finally {
       setState(() => _isLoading = false);
     }
@@ -116,10 +151,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   Future<void> _handleLogout() async {
     setState(() => _isLoading = true);
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('access_token');
-      AuthService.accessToken = null;
-      Get.offAllNamed(AppRoutes.login);
+      await AuthService.resetAccount();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -143,16 +175,18 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     setState(() => _isLoading = true);
     try {
       print('Uploading profile image...');
-      final request = http.MultipartRequest(
-        'POST',
-        Uri.parse('http://13.61.5.249:8000/auth/user/profile-picture/'),
-      );
-      request.headers['Authorization'] = 'Bearer \\${AuthService.accessToken}';
-      request.files.add(await http.MultipartFile.fromPath('profile_image', pickedFile.path));
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
-      print('Profile image upload status: \\${response.statusCode}');
-      print('Profile image upload body: \\${response.body}');
+      final response = await AuthService.authenticatedRequest((token) async {
+        final request = http.MultipartRequest(
+          'POST',
+          Uri.parse('http://13.61.5.249:8000/auth/user/profile-picture/'),
+        );
+        request.headers['Authorization'] = 'Bearer $token';
+        request.files.add(await http.MultipartFile.fromPath('profile_image', pickedFile.path));
+        final streamedResponse = await request.send();
+        return await http.Response.fromStream(streamedResponse);
+      });
+      print('Profile image upload status: ${response.statusCode}');
+      print('Profile image upload body: ${response.body}');
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         _profileImageUrl = data['profile_image'];
@@ -161,7 +195,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         Get.snackbar('Error', 'Failed to upload image', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
       }
     } catch (e) {
-      print('Profile image upload exception: \\${e.toString()}');
+      print('Profile image upload exception: ${e.toString()}');
       Get.snackbar('Error', 'An error occurred. Please try again.', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.red, colorText: Colors.white);
     } finally {
       setState(() => _isLoading = false);

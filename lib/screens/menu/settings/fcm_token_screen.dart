@@ -6,6 +6,10 @@ import 'package:get/get.dart';
 import 'package:sound_app/services/auth_service.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:permission_handler/permission_handler.dart';
+import '../../../services/notification_service.dart';
 
 class FCMTokenScreen extends StatefulWidget {
   final bool fromBottomNav;
@@ -20,48 +24,48 @@ class FCMTokenScreen extends StatefulWidget {
 }
 
 class _FCMTokenScreenState extends State<FCMTokenScreen> {
-  String? _fcmToken;
-  bool _isLoading = true;
+  final _formKey = GlobalKey<FormState>();
+  final _currentPasswordController = TextEditingController();
+  final _newPasswordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  bool _isLoading = false;
+  String? _currentToken;
+  String? _tokenFormat;
 
   @override
   void initState() {
     super.initState();
-    _loadFCMToken();
+    _loadCurrentToken();
   }
 
-  Future<void> _loadFCMToken() async {
-    // try {
-    //   final token = await FirebaseMessaging.instance.getToken();
-    //   setState(() {
-    //     _fcmToken = token;
-    //     _isLoading = false;
-    //   });
-    // } catch (e) {
-    //   setState(() {
-    //     _isLoading = false;
-    //   });
-    //   if (mounted) {
-    //     ScaffoldMessenger.of(context).showSnackBar(
-    //       const SnackBar(
-    //         content: Text('Failed to load FCM token'),
-    //         backgroundColor: Colors.red,
-    //       ),
-    //     );
-    //   }
-  }
-
-  Future<void> _copyToken() async {
-    if (_fcmToken != null) {
-      await Clipboard.setData(ClipboardData(text: _fcmToken!));
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('FCM token copied to clipboard'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
+  Future<void> _loadCurrentToken() async {
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      setState(() {
+        _currentToken = token;
+        _tokenFormat = _analyzeTokenFormat(token);
+      });
+    } catch (e) {
+      print('Error loading FCM token: $e');
     }
+  }
+
+  String _analyzeTokenFormat(String? token) {
+    if (token == null) return 'No token available';
+    
+    final parts = token.split(':');
+    if (parts.length != 2) return 'Invalid format: Should contain one colon';
+    
+    final prefix = parts[0];
+    final suffix = parts[1];
+    
+    String analysis = 'Token Format Analysis:\n';
+    analysis += '1. Length: ${token.length} characters\n';
+    analysis += '2. Prefix: $prefix\n';
+    analysis += '3. Suffix: $suffix\n';
+    analysis += '4. Valid Format: ${prefix.startsWith('eG7DuctCTI') ? 'Yes' : 'No'}\n';
+    
+    return analysis;
   }
 
   @override
@@ -93,20 +97,57 @@ class _FCMTokenScreenState extends State<FCMTokenScreen> {
           ),
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Your FCM Token',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF0D2B55),
+            // Current Token Section
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Current FCM Token',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (_currentToken != null) ...[
+                      SelectableText(
+                        _currentToken!,
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Token Format Analysis',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _tokenFormat ?? 'Analyzing...',
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 12,
+                        ),
+                      ),
+                    ] else
+                      const Text('Loading token...'),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 24),
             const Text(
               'This token is used for push notifications. You can copy it to use in your backend services.',
               style: TextStyle(
@@ -117,7 +158,7 @@ class _FCMTokenScreenState extends State<FCMTokenScreen> {
             const SizedBox(height: 20),
             if (_isLoading)
               const Center(child: CircularProgressIndicator())
-            else if (_fcmToken == null)
+            else if (_currentToken == null)
               const Center(
                 child: Text(
                   'Failed to load FCM token',
@@ -136,7 +177,7 @@ class _FCMTokenScreenState extends State<FCMTokenScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     SelectableText(
-                      _fcmToken!,
+                      _currentToken!,
                       style: const TextStyle(
                         fontSize: 14,
                         fontFamily: 'monospace',
@@ -164,6 +205,20 @@ class _FCMTokenScreenState extends State<FCMTokenScreen> {
       ),
       bottomNavigationBar: const AppBottomNavBar(currentRoute: 'settings'),
     );
+  }
+
+  Future<void> _copyToken() async {
+    if (_currentToken != null) {
+      await Clipboard.setData(ClipboardData(text: _currentToken!));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('FCM token copied to clipboard'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    }
   }
 }
 
@@ -237,8 +292,8 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
           'confirm_password': _confirmPasswordController.text,
         }),
       ));
-      print('Change password response status: \\${response.statusCode}');
-      print('Change password response body: \\${response.body}');
+      print('Change password response status: ${response.statusCode}');
+      print('Change password response body: ${response.body}');
       if (response.statusCode == 200) {
         Get.snackbar('Success', 'Password changed successfully', snackPosition: SnackPosition.BOTTOM, backgroundColor: Colors.green, colorText: Colors.white);
       } else {

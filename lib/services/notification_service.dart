@@ -5,14 +5,26 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'dart:io';
 
 class NotificationService {
-  // final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+  static final NotificationService _instance = NotificationService._internal();
+  factory NotificationService() => _instance;
+  NotificationService._internal();
+
+  final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
-  static const String _baseUrl = 'http://13.61.5.249:8000';
+  bool _isInitialized = false;
 
   Future<void> initialize() async {
+    if (_isInitialized) return;
     print('🔑 NotificationService initializing...');
+
+    // Request notification permissions
+    await _requestPermissions();
+    print('✅ Notification permission requested and local notifications initialized.');
 
     // Initialize local notifications
     const initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -22,14 +34,103 @@ class NotificationService {
       iOS: initializationSettingsIOS,
     );
 
-    await _localNotifications.initialize(
-      initializationSettings,
-      onDidReceiveNotificationResponse: (NotificationResponse response) {
-        // Handle notification tap
-        print('Notification tapped: ${response.payload}');
-      },
+    await _localNotifications.initialize(initializationSettings);
+    print('✅ Local notifications initialized');
+
+    // Get FCM token
+    String? token = await _firebaseMessaging.getToken();
+    print('📱 Current FCM Token: $token');
+    print('📱 Token Format: ${_analyzeTokenFormat(token)}');
+
+    // Listen for token refresh
+    _firebaseMessaging.onTokenRefresh.listen((newToken) {
+      print('🔄 FCM Token Refreshed: $newToken');
+      print('🔄 New Token Format: ${_analyzeTokenFormat(newToken)}');
+    });
+
+    // Handle incoming messages when app is in foreground
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      print('📨 Received foreground message:');
+      print('  - Title: ${message.notification?.title}');
+      print('  - Body: ${message.notification?.body}');
+      print('  - Data: ${message.data}');
+      _showLocalNotification(message);
+    });
+
+    // Handle message when app is in background and user taps notification
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      print('📨 App opened from background message:');
+      print('  - Title: ${message.notification?.title}');
+      print('  - Body: ${message.notification?.body}');
+      print('  - Data: ${message.data}');
+    });
+
+    // Handle message when app is terminated and user taps notification
+    final initialMessage = await _firebaseMessaging.getInitialMessage();
+    if (initialMessage != null) {
+      print('📨 App opened from terminated state:');
+      print('  - Title: ${initialMessage.notification?.title}');
+      print('  - Body: ${initialMessage.notification?.body}');
+      print('  - Data: ${initialMessage.data}');
+    }
+
+    _isInitialized = true;
+    print('✅ NotificationService initialized');
+  }
+
+  String _analyzeTokenFormat(String? token) {
+    if (token == null) return 'No token available';
+    
+    final parts = token.split(':');
+    if (parts.length != 2) return 'Invalid format: Should contain one colon';
+    
+    final prefix = parts[0];
+    final suffix = parts[1];
+    
+    String analysis = 'Token Format Analysis:\n';
+    analysis += '1. Length: ${token.length} characters\n';
+    analysis += '2. Prefix: $prefix\n';
+    analysis += '3. Suffix: $suffix\n';
+    analysis += '4. Valid Format: ${prefix.startsWith('eG7DuctCTI') ? 'Yes' : 'No'}\n';
+    
+    return analysis;
+  }
+
+  Future<void> _requestPermissions() async {
+    if (Platform.isIOS) {
+      await _firebaseMessaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+    } else {
+      await Permission.notification.request();
+    }
+  }
+
+  Future<void> _showLocalNotification(RemoteMessage message) async {
+    final androidDetails = AndroidNotificationDetails(
+      'sound_detection_channel',
+      'Sound Detection',
+      channelDescription: 'Notifications for detected sounds',
+      importance: Importance.high,
+      priority: Priority.high,
     );
-    print('✅ Notification permission requested and local notifications initialized.');
+
+    final iosDetails = const DarwinNotificationDetails();
+
+    final details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    await _localNotifications.show(
+      message.hashCode,
+      message.notification?.title ?? 'Sound Detected!',
+      message.notification?.body ?? 'A sound was detected',
+      details,
+      payload: message.data.toString(),
+    );
   }
 
   /// Shows a local notification with a specific title and body.

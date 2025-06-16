@@ -3,6 +3,9 @@ import 'package:sound_app/screens/home/home_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:sound_app/services/auth_service.dart';
 
 class RecordScreen extends StatelessWidget {
   final bool fromBottomNav;
@@ -14,7 +17,6 @@ class RecordScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final userId = FirebaseAuth.instance.currentUser?.uid;
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -38,22 +40,25 @@ class RecordScreen extends StatelessWidget {
           style: TextStyle(color: Colors.black87),
         ),
       ),
-      body: userId == null
-          ? const Center(child: Text('Not logged in'))
-          : StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('sound_detections')
-                  .where('userId', isEqualTo: userId)
-                  .orderBy('timestamp', descending: true)
-                  .snapshots(),
+      body: FutureBuilder<http.Response>(
+        future: AuthService.authenticatedRequest((token) => http.get(
+          Uri.parse('http://13.61.5.249:8000/auth/user/records/'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+        )),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          if (!snapshot.hasData || snapshot.data!.statusCode != 200) {
+            return const Center(child: Text('No records found.'));
+          }
+          final List records = jsonDecode(snapshot.data!.body);
+          if (records.isEmpty) {
                   return const Center(child: Text('No records found.'));
                 }
-                final records = snapshot.data!.docs;
                 return Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
@@ -94,11 +99,10 @@ class RecordScreen extends StatelessWidget {
                         child: ListView.builder(
                           itemCount: records.length,
                 itemBuilder: (context, index) {
-                            final data = records[index].data() as Map<String, dynamic>;
-                            final timestamp = data['timestamp'] as Timestamp?;
-                            final dateTime = timestamp?.toDate();
-                            final dateStr = dateTime != null ? DateFormat('dd-MMM-yyyy').format(dateTime) : '-';
-                            final timeStr = dateTime != null ? DateFormat('h:mma').format(dateTime) : '-';
+                      final data = records[index] as Map<String, dynamic>;
+                      final dateTime = DateTime.tryParse(data['timestamp'] ?? '') ?? DateTime.now();
+                      final dateStr = DateFormat('dd-MMM-yyyy').format(dateTime);
+                      final timeStr = DateFormat('h:mma').format(dateTime);
                             final label = data['label']?.toString() ?? '-';
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 8.0),

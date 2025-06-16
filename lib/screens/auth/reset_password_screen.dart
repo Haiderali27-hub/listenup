@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:sound_app/core/utils/validators.dart';
 import 'package:sound_app/widgets/custom_text_field.dart';
+import 'package:sound_app/services/auth_service.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
   const ResetPasswordScreen({super.key});
@@ -31,13 +32,16 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     });
     try {
       print('Sending password reset request...');
-      final response = await http.post(
+      final response = await AuthService.authenticatedRequest((token) => http.post(
         Uri.parse('http://13.61.5.249:8000/auth/user/change-password/'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
         body: jsonEncode({
           'email': _emailController.text.trim(),
         }),
-      );
+      ));
       print('Password reset response status: ${response.statusCode}');
       print('Password reset response body: ${response.body}');
       if (response.statusCode == 200) {

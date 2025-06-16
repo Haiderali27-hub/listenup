@@ -55,31 +55,60 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void toggleListening() async {
+    print('UI: toggleListening called. Current micListening.value: ${micListening.value}');
     try {
       if (micListening.value) {
+        print('UI: Toggling OFF - Calling BackgroundService().stopListening()');
         await BackgroundService().stopListening();
         micListening.value = false;
       } else {
-        await BackgroundService().startListening();
-        micListening.value = true;
+        print('UI: Toggling ON - Requesting microphone permission...');
+        // Request microphone permission before starting
+        final status = await Permission.microphone.request();
+        if (status.isGranted) {
+          print('UI: Microphone permission granted. Calling BackgroundService().startListening()');
+          await BackgroundService().startListening();
+          micListening.value = true;
+        } else {
+          print('UI: Microphone permission denied.');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Microphone permission is required to start listening'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
       }
     } catch (e) {
+      print('UI: Error toggling listening: $e');
+      micListening.value = false; // Reset state on error
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error toggling listening: $e')),
+          SnackBar(
+            content: Text('Error toggling listening: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
   }
 
   void stopListening() async {
+    print('UI: Explicit stopListening() called (from close button).');
     try {
       await BackgroundService().stopListening();
       micListening.value = false;
     } catch (e) {
+      print('UI: Error stopping listening (from close button): $e');
+      micListening.value = false; // Reset state on error
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error stopping listening: $e')),
+          SnackBar(
+            content: Text('Error stopping listening: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }

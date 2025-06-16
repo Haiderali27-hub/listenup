@@ -23,73 +23,50 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _navigateFromSplash();
+    _initializeApp();
   }
 
-  void _navigateFromSplash() async {
-    final prefs = await SharedPreferences.getInstance();
-    final onboardingComplete = prefs.getBool('onboarding_complete') ?? false;
-    final token = prefs.getString('access_token');
-    print('SplashScreen: onboardingComplete=$onboardingComplete, token=$token');
-      await Future.delayed(const Duration(seconds: 2));
-    if (!onboardingComplete) {
-      print('SplashScreen: Navigating to onboarding');
-      Get.offAllNamed(AppRoutes.onboarding);
-    } else if (token != null && token.isNotEmpty) {
-      print('SplashScreen: Navigating to home');
-      AuthService.accessToken = token;
-      Get.offAllNamed(AppRoutes.home);
-    } else {
-      print('SplashScreen: Navigating to login');
+  Future<void> _initializeApp() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('access_token');
+      final refreshToken = prefs.getString('refresh_token');
+      final email = prefs.getString('user_email');
+      
+      print('SplashScreen: token=$token');
+      
+      if (token != null && refreshToken != null && email != null) {
+        print('SplashScreen: Navigating to home');
+        await AuthService.saveTokens(token, refreshToken, email);
+        Get.offAllNamed(AppRoutes.home);
+      } else {
+        print('SplashScreen: Navigating to login');
+        Get.offAllNamed(AppRoutes.login);
+      }
+    } catch (e) {
+      print('SplashScreen: Error during initialization: $e');
       Get.offAllNamed(AppRoutes.login);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color.fromARGB(255, 11, 43, 88), // Deep blue
-              Color.fromARGB(255, 37, 119, 92), // Teal green
-            ],
-          ),
-        ),
+    return const Scaffold(
+      backgroundColor: Color(0xFF0D2B55),
+      body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.asset(
-              logo,
-              width: 120,
-              height: 120,
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'LISTEN UP',
+            Text(
+              'Sound App',
               style: TextStyle(
-                fontSize: 24,
                 color: Colors.white,
+                fontSize: 32,
                 fontWeight: FontWeight.bold,
-                letterSpacing: 1.5,
               ),
             ),
-            const SizedBox(height: 8),
-            const Text(
-              'IoT-Powered Smart Home\nAssistance',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: 14,
-              ),
-            ),
-            const SizedBox(height: 40),
-            const CircularProgressIndicator(
+            SizedBox(height: 20),
+            CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
             ),
           ],
