@@ -6,6 +6,7 @@ import 'package:sound_app/routes/app_routes.dart';
 import 'package:flutter/material.dart';
 import '../utils/constants.dart';
 import 'package:sound_app/services/background_service.dart';
+import 'package:sound_app/services/mic_state.dart';
 
 class AuthService {
   static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -178,6 +179,8 @@ class AuthService {
     _tokenExpiry = null;
     
     // Navigate to login screen using GetX
+    await BackgroundService().stopListening();
+    micListening.value = false;
     Get.offAllNamed('/login');
     
     // Show a user-friendly message using GetX

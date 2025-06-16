@@ -100,7 +100,7 @@ class RecordScreen extends StatelessWidget {
                           itemCount: records.length,
                 itemBuilder: (context, index) {
                       final data = records[index] as Map<String, dynamic>;
-                      final dateTime = DateTime.tryParse(data['timestamp'] ?? '') ?? DateTime.now();
+                      final dateTime = (DateTime.tryParse(data['timestamp'] ?? '')?.toLocal()) ?? DateTime.now();
                       final dateStr = DateFormat('dd-MMM-yyyy').format(dateTime);
                       final timeStr = DateFormat('h:mma').format(dateTime);
                       String displayLabel = data['label']?.toString() ?? '-';
