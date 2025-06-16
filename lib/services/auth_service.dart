@@ -8,6 +8,8 @@ import '../utils/constants.dart';
 import 'package:sound_app/services/background_service.dart';
 
 class AuthService {
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+  
   static const String _baseUrl = 'http://13.61.5.249:8000';
   static const String _loginUrl = '$_baseUrl/auth/login/';
   static const String _registerUrl = '$_baseUrl/auth/register/';
@@ -84,17 +86,124 @@ class AuthService {
     return _accessToken;
   }
 
+  static Future<http.Response> makeAuthenticatedRequest(
+    String endpoint,
+    String method, {
+    Map<String, String>? headers,
+    dynamic body,
+    bool isMultipart = false,
+  }) async {
+    print('\n🔐 [AuthService] Starting authenticated request...');
+    print('🔑 Using token: ${_accessToken?.substring(0, 10)}...');
+
+    if (_accessToken == null) {
+      print('❌ No access token available');
+      throw Exception('No access token available');
+    }
+
+    // Check if token is expired
+    if (_tokenExpiry != null && DateTime.now().isAfter(_tokenExpiry!)) {
+      print('⚠️ Token has expired. Logging out user...');
+      await handleSessionExpiration();
+      throw Exception('Session expired');
+    }
+
+    final requestHeaders = {
+      'Authorization': 'Bearer $_accessToken',
+      'Content-Type': 'application/json',
+      ...?headers,
+    };
+
+    print('📤 Making authenticated request...');
+    print('URL: ${AppConstants.baseUrl}$endpoint');
+    print('Method: $method');
+    print('Headers: $requestHeaders');
+
+    try {
+      http.Response response;
+      if (isMultipart && body is http.MultipartRequest) {
+        // Add authorization header to multipart request
+        body.headers['Authorization'] = 'Bearer $_accessToken';
+        response = await http.Response.fromStream(await body.send());
+      } else {
+        final uri = Uri.parse('${AppConstants.baseUrl}$endpoint');
+        switch (method.toUpperCase()) {
+          case 'GET':
+            response = await http.get(uri, headers: requestHeaders);
+            break;
+          case 'POST':
+            response = await http.post(uri, headers: requestHeaders, body: body != null ? json.encode(body) : null);
+            break;
+          case 'PUT':
+            response = await http.put(uri, headers: requestHeaders, body: body != null ? json.encode(body) : null);
+            break;
+          case 'DELETE':
+            response = await http.delete(uri, headers: requestHeaders);
+            break;
+          default:
+            throw Exception('Unsupported HTTP method: $method');
+        }
+      }
+
+      print('📥 Response received:');
+      print('- Status code: ${response.statusCode}');
+      print('- Response body: ${response.body}');
+
+      if (response.statusCode == 401) {
+        print('⚠️ Unauthorized response received. Logging out user...');
+        await handleSessionExpiration();
+        throw Exception('Session expired');
+      }
+
+      return response;
+    } catch (e) {
+      print('❌ Error during authenticated request: $e');
+      rethrow;
+    }
+  }
+
+  static Future<void> handleSessionExpiration() async {
+    print('🔄 Handling session expiration...');
+    
+    // Clear stored tokens
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('access_token');
+    await prefs.remove('refresh_token');
+    await prefs.remove('user_email');
+    
+    // Reset in-memory state
+    _accessToken = null;
+    _refreshToken = null;
+    _userEmail = null;
+    _tokenExpiry = null;
+    
+    // Navigate to login screen using GetX
+    Get.offAllNamed('/login');
+    
+    // Show a user-friendly message using GetX
+    Get.snackbar(
+      'Session Expired',
+      'Your session has expired. Please log in again.',
+      duration: const Duration(seconds: 3),
+      snackPosition: SnackPosition.TOP,
+    );
+  }
+
+  static Future<void> logout() async {
+    // Implementation of logout method
+  }
+
   // Original authenticatedRequest method for backward compatibility
   static Future<http.Response> authenticatedRequest(Future<http.Response> Function(String token) request) async {
     print('\n🔐 [AuthService] Starting authenticated request...');
-
+    
     if (_accessToken == null) {
       await AuthService.loadTokens();
     }
 
     if (_accessToken == null) {
       print('❌ No access token available after check');
-      await resetAccount();
+      await handleSessionExpiration();
       throw Exception('No access token available');
     }
 
@@ -109,20 +218,9 @@ class AuthService {
       print('- Response body: ${response.body}');
 
       if (response.statusCode == 401) {
-        print('🔄 Token expired, attempting refresh...');
-        try {
-          await refreshAccessToken();
-          // Retry the request with new token
-          final newResponse = await request(_accessToken!);
-          print('✅ Request retried with new token');
-          print('- New status code: ${newResponse.statusCode}');
-          print('- New response body: ${newResponse.body}');
-          return newResponse;
-        } catch (e) {
-          print('❌ Token refresh failed: $e');
-          await resetAccount();
-          throw Exception('Authentication failed: Token expired');
-        }
+        print('⚠️ Unauthorized response received. Logging out user...');
+        await handleSessionExpiration();
+        throw Exception('Session expired');
       }
 
       return response;
@@ -132,7 +230,7 @@ class AuthService {
     }
   }
 
-  // New authenticatedRequest method for MultipartRequest
+  // Method for MultipartRequest
   Future<http.StreamedResponse> authenticatedRequestMultipart(http.MultipartRequest request) async {
     print('\n🔐 [AuthService] Starting authenticated multipart request...');
     
@@ -159,21 +257,9 @@ class AuthService {
       print('- Response body: $responseBody');
 
       if (response.statusCode == 401) {
-        print('🔄 Token expired, attempting refresh...');
-        try {
-          await refreshAccessToken();
-          token = await getAccessToken();
-          request.headers['Authorization'] = 'Bearer $token!';
-          response = await request.send();
-          responseBody = await response.stream.bytesToString();
-          print('✅ Request retried with new token');
-          print('- New status code: ${response.statusCode}');
-          print('- New response body: $responseBody');
-        } catch (e) {
-          print('❌ Token refresh failed: $e');
-          await resetAccount();
-          throw Exception('Authentication failed: Token expired');
-        }
+        print('⚠️ Unauthorized response received. Logging out user...');
+        await handleSessionExpiration();
+        throw Exception('Session expired');
       }
 
       return http.StreamedResponse(
@@ -214,52 +300,5 @@ class AuthService {
       backgroundColor: const Color(0xFFB00020),
       colorText: const Color(0xFFFFFFFF)
     );
-  }
-
-  static Future<void> refreshAccessToken() async {
-    if (_refreshToken == null) {
-      throw Exception('No refresh token available');
-    }
-
-    try {
-      final response = await http.post(
-        Uri.parse('${AppConstants.baseUrl}${AppConstants.refreshTokenEndpoint}'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({'refresh': _refreshToken}),
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        _accessToken = data['access'];
-        _refreshToken = data['refresh'];
-        
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('access_token', _accessToken!);
-        await prefs.setString('refresh_token', _refreshToken!);
-        
-        // Update token expiry
-        try {
-          final parts = _accessToken!.split('.');
-          if (parts.length == 3) {
-            final payload = parts[1];
-            final normalized = base64Url.normalize(payload);
-            final decoded = utf8.decode(base64Url.decode(normalized));
-            final Map<String, dynamic> claims = json.decode(decoded);
-            _tokenExpiry = DateTime.fromMillisecondsSinceEpoch(claims['exp'] * 1000);
-          }
-        } catch (e) {
-          print('Error decoding JWT: $e');
-        }
-      } else {
-        throw Exception('Failed to refresh token');
-      }
-    } catch (e) {
-      print('Error refreshing token: $e');
-      rethrow;
-    }
-  }
-
-  static Future<void> logout() async {
-    // Implementation of logout method
   }
 } 

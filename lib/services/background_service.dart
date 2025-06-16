@@ -55,43 +55,43 @@ class BackgroundService {
         return;
       }
 
-      try {
-        print('🔍 Checking microphone permissions...');
+    try {
+      print('🔍 Checking microphone permissions...');
 
-        // First check if permission is already granted
-        var status = await Permission.microphone.status;
-        print('📱 Current microphone permission status: $status');
+      // First check if permission is already granted
+      var status = await Permission.microphone.status;
+      print('📱 Current microphone permission status: $status');
 
-        if (status.isDenied) {
-          print('🔒 Requesting microphone permission...');
-          status = await Permission.microphone.request();
-          print('📱 New microphone permission status: $status');
-        }
+      if (status.isDenied) {
+        print('🔒 Requesting microphone permission...');
+        status = await Permission.microphone.request();
+        print('📱 New microphone permission status: $status');
+      }
 
-        if (!status.isGranted) {
-          throw Exception(
-              'Microphone permission not granted. Current status: $status');
-        }
+      if (!status.isGranted) {
+        throw Exception(
+            'Microphone permission not granted. Current status: $status');
+      }
 
         // Initialize recorder only if it's null
         if (_audioRecorder == null) {
           print('🆕 Initializing AudioRecorder instance.');
           _audioRecorder = AudioRecorder();
         }
-        
-        // Verify recorder permission
-        print('🔍 Verifying audio recorder permission...');
+
+      // Verify recorder permission
+      print('🔍 Verifying audio recorder permission...');
         final hasPermission = await _audioRecorder!.hasPermission();
-        print('📱 Audio recorder permission status: $hasPermission');
+      print('📱 Audio recorder permission status: $hasPermission');
 
-        if (!hasPermission) {
-          throw Exception('Audio recorder permission not granted');
-        }
+      if (!hasPermission) {
+        throw Exception('Audio recorder permission not granted');
+      }
 
-        _isInitialized = true;
-        print('✅ Audio recorder initialized successfully');
-      } catch (e) {
-        print('❌ Error initializing background service: $e');
+      _isInitialized = true;
+      print('✅ Audio recorder initialized successfully');
+    } catch (e) {
+      print('❌ Error initializing background service: $e');
         // If an error occurs, ensure _audioRecorder is reset for a fresh attempt
         if (_audioRecorder != null) {
           print('🗑️ Disposing and nulling _audioRecorder due to initialization error.');
@@ -140,11 +140,11 @@ class BackgroundService {
         _isListening = true;
 
         await _audioRecorder!.start(
-          const RecordConfig(
-            encoder: AudioEncoder.wav,
+        const RecordConfig(
+          encoder: AudioEncoder.wav,
             bitRate: 128000,
-            sampleRate: 16000,
-            numChannels: 1,
+          sampleRate: 16000,
+          numChannels: 1,
           ),
           path: _lastRecordedFilePath!,
         );
@@ -195,9 +195,9 @@ class BackgroundService {
       // Check if file exists and get its size
       final file = File(_lastRecordedFilePath!);
       if (await file.exists()) {
-        final size = await file.length();
-        print('📊 Recording size: $size bytes');
-        
+      final size = await file.length();
+      print('📊 Recording size: $size bytes');
+
         if (size == 0) {
           print('❌ Recording file is empty');
           onShowMessage?.call('Recording failed: Empty file');
