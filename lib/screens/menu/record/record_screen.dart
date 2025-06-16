@@ -103,7 +103,14 @@ class RecordScreen extends StatelessWidget {
                       final dateTime = DateTime.tryParse(data['timestamp'] ?? '') ?? DateTime.now();
                       final dateStr = DateFormat('dd-MMM-yyyy').format(dateTime);
                       final timeStr = DateFormat('h:mma').format(dateTime);
-                            final label = data['label']?.toString() ?? '-';
+                      String displayLabel = data['label']?.toString() ?? '-';
+                      // Parse the label to remove ID and path if present
+                      if (displayLabel.contains(',')) {
+                        final parts = displayLabel.split(',');
+                        if (parts.length >= 3) {
+                          displayLabel = parts[2];
+                        }
+                      }
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 8.0),
                     child: Row(
@@ -116,7 +123,7 @@ class RecordScreen extends StatelessWidget {
                         ),
                         Expanded(
                           child: Text(
-                                      label,
+                                      displayLabel,
                             style: TextStyle(color: Colors.grey[600]),
                           ),
                         ),

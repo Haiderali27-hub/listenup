@@ -59,10 +59,25 @@ class NotificationService {
       // using the content from message.notification payload.
       final notification = message.notification;
       if (notification != null) {
+        String displayTitle = 'Sound Detected!';
+        String displayBody = notification.body ?? 'A sound was detected.';
+
+        // Attempt to parse the title if it contains the "jibberish" format (e.g., "ID,path,label")
+        if (notification.title != null) {
+          final parts = notification.title!.split(',');
+          if (parts.length >= 3) {
+            displayBody = parts[2]; // The sound label
+            print('✨ Parsed notification body from title: $displayBody');
+          } else {
+            displayTitle = notification.title!;
+            print('⚠️ Notification title not in expected format, using as is: ${notification.title}');
+          }
+        }
+
         _localNotifications.show(
           notification.hashCode, // Use hash code for unique ID, or other ID
-          notification.title,
-          notification.body,
+          displayTitle,
+          displayBody,
           const NotificationDetails(
             android: AndroidNotificationDetails(
               'sound_detection_channel',
