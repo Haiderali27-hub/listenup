@@ -242,12 +242,20 @@ class BackgroundService {
         
         onShowMessage?.call('Detected: $label');
 
-        // Show a local notification
-        _notificationService.showNotification(
-          title: 'Sound Detected!',
-          body: 'A sound was detected: $label',
-        );
+        // Removed: Show a local notification - relying on backend push notifications
+        // _notificationService.showNotification(
+        //   title: 'Sound Detected!',
+        //   body: 'A sound was detected: $label',
+        // );
         print('✅ Notification triggered for: $label');
+
+        // Restart listening for the next segment if still active
+        if (_isListening) {
+          print('🔄 Re-starting recording cycle. Calling startListening()...');
+          startListening();
+        } else {
+          print('🛑 _isListening is false. Not re-starting recording cycle.');
+        }
       } else {
         print('❌ No sound detected or invalid response format from backend.');
         onShowMessage?.call('No sound detected');

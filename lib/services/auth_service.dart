@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:sound_app/routes/app_routes.dart';
 import 'package:flutter/material.dart';
 import '../utils/constants.dart';
+import 'package:sound_app/services/background_service.dart';
 
 class AuthService {
   static const String _baseUrl = 'http://13.61.5.249:8000';
@@ -200,6 +201,10 @@ class AuthService {
     await prefs.remove('refresh_token');
     await prefs.remove('user_email');
     await prefs.remove('token_expiry');
+
+    // Stop the microphone when the account is reset
+    await BackgroundService().stopListening();
+
     print('✅ Account reset complete');
     Get.offAllNamed(AppRoutes.login);
     Get.snackbar(

@@ -54,7 +54,45 @@ class NotificationService {
       print('  - Title: ${message.notification?.title}');
       print('  - Body: ${message.notification?.body}');
       print('  - Data: ${message.data}');
-      _showLocalNotification(message);
+
+      // Re-introduce showing local notification for foreground messages,
+      // using the content from message.notification payload.
+      final notification = message.notification;
+      if (notification != null) {
+        _localNotifications.show(
+          notification.hashCode, // Use hash code for unique ID, or other ID
+          notification.title,
+          notification.body,
+          const NotificationDetails(
+            android: AndroidNotificationDetails(
+              'sound_detection_channel',
+              'Sound Detection',
+              channelDescription: 'Notifications for detected sounds',
+              importance: Importance.high,
+              priority: Priority.high,
+            ),
+            iOS: DarwinNotificationDetails(),
+          ),
+          payload: message.data.toString(),
+        );
+        print('✅ Local notification shown for foreground FCM message.');
+      } else {
+        print('⚠️ Foreground FCM message without notification payload.');
+      }
+
+      // Keep processing push_response data for internal app logic if needed, but not for displaying notification.
+      final pushResponse = message.data['push_response'];
+      if (pushResponse != null && pushResponse is String) {
+        final parts = pushResponse.split(',');
+        if (parts.length >= 3) {
+          final soundLabel = parts[2]; // e.g., "Crackle"
+          print('✨ Parsed sound label from push_response (for data processing): $soundLabel');
+        } else {
+          print('⚠️ Unexpected push_response format: $pushResponse (for data processing).');
+        }
+      } else {
+        print('⚠️ No valid push_response in message data (for data processing).');
+      }
     });
 
     // Handle message when app is in background and user taps notification
